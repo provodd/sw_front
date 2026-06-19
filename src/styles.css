@@ -1,0 +1,522 @@
+/* ============================================================
+   Swaypik — Design System
+   Mobile-only Telegram Mini App. Viewport ~320–430px.
+   All sizing is fluid (clamp + vw/vh) unless otherwise noted.
+   ============================================================ */
+
+:root {
+  /* ── Surface ─────────────────────────────────────────────── */
+  --surface-base:          #000;
+  --surface-elev-1:        rgba(255,255,255,0.04);
+  --surface-elev-2:        rgba(255,255,255,0.08);
+  --surface-elev-3:        rgba(255,255,255,0.12);
+  --surface-glass:         linear-gradient(90deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.2) 100%),
+                           linear-gradient(90deg, rgba(51,51,51,0.35) 0%, rgba(51,51,51,0.35) 100%);
+  --surface-glass-soft:    rgba(120,120,120,0.22);
+  --surface-glass-border:  rgba(255,255,255,0.4);
+  --surface-card:          rgba(34,34,34,0.5);       /* плотная тёмная карточка (профиль, Figma) */
+  --surface-photo:         #680b38;                  /* фон-заглушка под фото профиля */
+
+  /* ── Brand / Accents ─────────────────────────────────────── */
+  --accent:                #E91E8C;
+  --accent-2:              #FF4DB3;
+  --accent-grad:           linear-gradient(135deg, #E91E8C, #FF4DB3);
+  --accent-soft:           rgba(233,30,140,0.20);
+  --accent-deep:           #771042;                  /* затемнённый акцент — вторичные пилюли/метки */
+
+  /* legacy aliases — keep working until migration done */
+  --accent2:               #FF4DB3;
+  --bg:                    radial-gradient(261.83% 55.71% at 50% 50%, #F91A86 0%, #000 100%);
+  --dark-card:             rgba(0, 0, 0, 0.2);
+  --glass-bg:              var(--surface-glass);
+  --glass-border:          var(--surface-glass-border);
+  --btn-dark:              #000;
+  --radius:                30px;
+
+  /* ── Status ──────────────────────────────────────────────── */
+  --success:               #4CAF50;
+  --error:                 #f44336;
+  --tg-blue:               #229ED9;
+  --gold:                  #FFD700;
+
+  /* ── Text ────────────────────────────────────────────────── */
+  --text:                  #fff;
+  --text-muted:            rgba(255,255,255,0.7);
+  --text-faint:            rgba(255,255,255,0.5);
+  --text-dim:              rgba(255,255,255,0.3);
+
+  /* ── Backgrounds / gradients ─────────────────────────────── */
+  --bg-onboarding:         radial-gradient(261.83% 55.71% at 50% 50%, #F91A86 0%, #000 100%);
+  --bg-app:                var(--bg-onboarding);
+  --gradient-fade-bottom:  linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 100%);
+  --gradient-fade-top:     linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%);
+
+  /* ── Typography (fluid) ──────────────────────────────────── */
+  --text-giant:            clamp(64px, 22vw, 96px);   /* стрик-число, крупные заголовки */
+  --text-hero:             clamp(48px, 14vw, 64px);   /* награда +N, крупные числа */
+  --text-jumbo:            clamp(36px, 11vw, 48px);   /* числа: рост, обмен */
+  --text-display:          clamp(28px, 8vw, 36px);
+  --text-h1:               clamp(24px, 7vw, 32px);
+  --text-h2:               clamp(20px, 6vw, 26px);
+  --text-h3:               clamp(16px, 4.5vw, 18px);
+  --text-body:             clamp(14px, 4vw, 16px);
+  --text-small:            clamp(12px, 3.5vw, 14px);
+  --text-caption:          clamp(10px, 3vw, 12px);
+
+  /* Эмодзи/глифы как иконки (размер иконки, не типографика) */
+  --emoji-sm:              clamp(18px, 5.5vw, 24px);
+  --emoji-md:              clamp(24px, 8vw,   32px);
+  --emoji-lg:              clamp(36px, 12vw,  48px);
+  --emoji-xl:              clamp(48px, 16vw,  64px);
+
+  --font-regular:          400;
+  --font-medium:           500;
+  --font-semi:             600;
+  --font-bold:             700;
+  --font-extra:            800;
+  --font-black:            900;
+
+  --tracking-tightest:     -1px;
+  --tracking-tight:        -0.3px;
+  --tracking-tighter:      -0.5px;
+  --tracking-wide:         1px;
+  --tracking-wider:        2px;
+
+  --text-ink:              #5a5a5a;   /* тёмный текст на светлой карточке */
+
+  /* ── Spacing (fluid for big, fixed for atomic) ───────────── */
+  --space-2xs:             4px;
+  --space-xs:              8px;
+  --space-sm:              clamp(10px, 3vw, 12px);
+  --space-md:              clamp(12px, 3.5vw, 16px);
+  --space-lg:              clamp(16px, 4.5vw, 20px);
+  --space-xl:              clamp(20px, 5.5vw, 28px);
+  --space-2xl:             clamp(28px, 7vw, 40px);
+  --space-3xl:             clamp(40px, 10vw, 60px);
+
+  /* screen-edge padding (consistent gutter on every screen) */
+  --gutter:                14px;
+
+  /* ── Adaptive layout ──────────────────────────────────────── */
+  --nav-reserve:           clamp(126px, 16vh, 140px);    /* space for bottom nav (nav верх ~110px + отступ) */
+  --header-safe-top:       clamp(60px, 12vh, 120px);     /* TG webapp safe top (adaptive) */
+  --header-safe-compact:   clamp(40px, 6vh, 60px);       /* half-size header for sub-screens */
+  --header-pad-top:        var(--header-safe-top);
+  --btn-max:               clamp(200px, 65vw, 300px);    /* единая адаптивная ширина основных кнопок (~65% экрана) */
+
+  /* ── Radius ──────────────────────────────────────────────── */
+  --radius-sm:             12px;
+  --radius-md:             20px;
+  --radius-card:           25px;
+  --radius-lg:             30px;
+  --radius-pill:           50px;
+  --radius-circle:         50%;
+
+  /* ── Shadows ─────────────────────────────────────────────── */
+  --shadow-card:           0 2px 4px rgba(0,0,0,0.10);
+  --shadow-elev:           0 4px 16px rgba(0,0,0,0.25);
+  --shadow-modal:          0 8px 32px rgba(0,0,0,0.40);
+
+  /* ── Z-index ─────────────────────────────────────────────── */
+  --z-base:                1;
+  --z-overlay:             10;
+  --z-sticky:              50;
+  --z-nav:                 100;
+  --z-modal:               1000;
+  --z-toast:               2000;
+
+  /* ── Motion ──────────────────────────────────────────────── */
+  --transition-fast:       150ms ease;
+  --transition:            250ms ease;
+  --transition-slow:       400ms ease;
+
+  /* ── Effects ─────────────────────────────────────────────── */
+  --blur-glass:            blur(50px);
+  --blur-soft:             blur(16px);
+}
+
+/* ============================================================
+   Reset
+   ============================================================ */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  background: var(--bg-app);
+  color: var(--text);
+  font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: var(--text-body);
+}
+
+/* ============================================================
+   Layout primitives
+   ============================================================ */
+
+/* Base full-screen container. Variants change background. */
+.screen {
+  position: absolute;
+  inset: 0;
+  background: var(--bg-app);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.screen--gradient    { background: var(--bg-onboarding); }
+.screen--black       { background: var(--surface-base); }
+.screen--centered    { align-items: center; justify-content: center; }
+/* Leaves space for the BottomNav. Add when nav is visible. */
+.screen--with-nav    { padding-bottom: var(--nav-reserve); }
+
+.app-container {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-content {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  padding-bottom: var(--nav-reserve);
+}
+
+/* Vertical stack with gap */
+.stack-2xs { display: flex; flex-direction: column; gap: var(--space-2xs); }
+.stack-xs  { display: flex; flex-direction: column; gap: var(--space-xs);  }
+.stack-sm  { display: flex; flex-direction: column; gap: var(--space-sm);  }
+.stack-md  { display: flex; flex-direction: column; gap: var(--space-md);  }
+.stack-lg  { display: flex; flex-direction: column; gap: var(--space-lg);  }
+.stack-xl  { display: flex; flex-direction: column; gap: var(--space-xl);  }
+.stack-2xl { display: flex; flex-direction: column; gap: var(--space-2xl); }
+
+/* Horizontal cluster (wraps) */
+.cluster-2xs { display: flex; flex-wrap: wrap; gap: var(--space-2xs); align-items: center; }
+.cluster-xs  { display: flex; flex-wrap: wrap; gap: var(--space-xs);  align-items: center; }
+.cluster-sm  { display: flex; flex-wrap: wrap; gap: var(--space-sm);  align-items: center; }
+.cluster-md  { display: flex; flex-wrap: wrap; gap: var(--space-md);  align-items: center; }
+.cluster-lg  { display: flex; flex-wrap: wrap; gap: var(--space-lg);  align-items: center; }
+
+/* Row (no wrap) */
+.row        { display: flex; align-items: center; }
+.row-between { display: flex; align-items: center; justify-content: space-between; }
+
+.center      { display: flex; align-items: center; justify-content: center; }
+.full        { width: 100%; height: 100%; }
+.full-w      { width: 100%; }
+.flex-1      { flex: 1; min-width: 0; }
+.shrink-0    { flex-shrink: 0; }
+
+/* ============================================================
+   Spacing utilities
+   ============================================================ */
+.p-2xs { padding: var(--space-2xs); }
+.p-xs  { padding: var(--space-xs);  }
+.p-sm  { padding: var(--space-sm);  }
+.p-md  { padding: var(--space-md);  }
+.p-lg  { padding: var(--space-lg);  }
+.p-xl  { padding: var(--space-xl);  }
+
+.px-gutter { padding-left: var(--gutter); padding-right: var(--gutter); }
+.px-md { padding-left: var(--space-md); padding-right: var(--space-md); }
+.px-lg { padding-left: var(--space-lg); padding-right: var(--space-lg); }
+
+.py-xs { padding-top: var(--space-xs); padding-bottom: var(--space-xs); }
+.py-sm { padding-top: var(--space-sm); padding-bottom: var(--space-sm); }
+.py-md { padding-top: var(--space-md); padding-bottom: var(--space-md); }
+.py-lg { padding-top: var(--space-lg); padding-bottom: var(--space-lg); }
+
+.mb-2xs { margin-bottom: var(--space-2xs); }
+.mb-xs  { margin-bottom: var(--space-xs);  }
+.mb-sm  { margin-bottom: var(--space-sm);  }
+.mb-md  { margin-bottom: var(--space-md);  }
+.mb-lg  { margin-bottom: var(--space-lg);  }
+.mb-xl  { margin-bottom: var(--space-xl);  }
+
+.mt-xs  { margin-top: var(--space-xs);  }
+.mt-sm  { margin-top: var(--space-sm);  }
+.mt-md  { margin-top: var(--space-md);  }
+.mt-lg  { margin-top: var(--space-lg);  }
+.mt-xl  { margin-top: var(--space-xl);  }
+
+.gap-xs { gap: var(--space-xs); }
+.gap-sm { gap: var(--space-sm); }
+.gap-md { gap: var(--space-md); }
+.gap-lg { gap: var(--space-lg); }
+
+.mx-auto { margin-left: auto; margin-right: auto; }
+
+/* ============================================================
+   Typography utilities
+   ============================================================ */
+.text-giant   { font-size: var(--text-giant);   font-weight: var(--font-black);   line-height: 1;    letter-spacing: var(--tracking-tightest); }
+.text-hero    { font-size: var(--text-hero);    font-weight: var(--font-black);   line-height: 1;    letter-spacing: var(--tracking-tightest); }
+.text-jumbo   { font-size: var(--text-jumbo);   font-weight: var(--font-black);   line-height: 1.05; letter-spacing: var(--tracking-tightest); }
+.text-display { font-size: var(--text-display); font-weight: var(--font-extra);   line-height: 1.15; letter-spacing: var(--tracking-tight); }
+.text-h1      { font-size: var(--text-h1);      font-weight: var(--font-extra);   line-height: 1.2;  letter-spacing: var(--tracking-tight); }
+.text-h2      { font-size: var(--text-h2);      font-weight: var(--font-extra);   line-height: 1.25; letter-spacing: var(--tracking-tight); }
+.text-h3      { font-size: var(--text-h3);      font-weight: var(--font-bold);    line-height: 1.3;  }
+.text-body    { font-size: var(--text-body);    font-weight: var(--font-regular); line-height: 1.45; }
+.text-small   { font-size: var(--text-small);   font-weight: var(--font-regular); line-height: 1.4;  }
+.text-caption { font-size: var(--text-caption); font-weight: var(--font-regular); line-height: 1.4;  }
+
+.text-muted   { color: var(--text-muted); }
+.text-faint   { color: var(--text-faint); }
+.text-dim     { color: var(--text-dim); }
+.text-accent  { color: var(--accent); }
+.text-tg      { color: var(--tg-blue); }
+.text-gold    { color: var(--gold); }
+.text-ink     { color: var(--text-ink); }
+
+.text-tightest { letter-spacing: var(--tracking-tightest); }
+.text-tight   { letter-spacing: var(--tracking-tight); }
+.text-tighter { letter-spacing: var(--tracking-tighter); }
+.text-wide    { letter-spacing: var(--tracking-wide); }
+.text-wider   { letter-spacing: var(--tracking-wider); }
+
+.text-center  { text-align: center; }
+.text-right   { text-align: right; }
+
+.leading-none    { line-height: 1; }
+.leading-snug    { line-height: 1.3; }
+.leading-relaxed { line-height: 1.45; }
+.leading-loose   { line-height: 1.6; }
+
+.font-medium  { font-weight: var(--font-medium); }
+.font-semi    { font-weight: var(--font-semi); }
+.font-bold    { font-weight: var(--font-bold); }
+.font-extra   { font-weight: var(--font-extra); }
+.font-black   { font-weight: var(--font-black); }
+
+/* Эмодзи/глифы-иконки */
+.emoji-sm     { font-size: var(--emoji-sm); line-height: 1; }
+.emoji-md     { font-size: var(--emoji-md); line-height: 1; }
+.emoji-lg     { font-size: var(--emoji-lg); line-height: 1; }
+.emoji-xl     { font-size: var(--emoji-xl); line-height: 1; }
+
+/* ============================================================
+   Surface effects
+   ============================================================ */
+
+/* Glass card — main pattern (replaces 8+ inline duplicates) */
+.glass {
+  background: var(--surface-glass);
+  border: 1px solid var(--surface-glass-border);
+  backdrop-filter: var(--blur-glass);
+  -webkit-backdrop-filter: var(--blur-glass);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+/* Soft glass — for circular icon buttons / overlays */
+.glass-soft {
+  background: var(--surface-glass-soft);
+  backdrop-filter: var(--blur-soft);
+  -webkit-backdrop-filter: var(--blur-soft);
+}
+
+/* Solid translucent dark card — Figma profile cards (no border, plotnee чем .glass).
+   Default radius 25; override с var(--radius-md|lg) для отдельных карточек. */
+.card-dark {
+  background: var(--surface-card);
+  border-radius: var(--radius-card);
+}
+
+/* Bottom dark fade (over photo cards) */
+.fade-bottom {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 45%;
+  background: var(--gradient-fade-bottom);
+  pointer-events: none;
+}
+
+/* ============================================================
+   Buttons
+   ============================================================ */
+.btn-dark {
+  width: var(--btn-max);
+  max-width: 100%;
+  margin-inline: auto;
+  padding: var(--space-md);
+  background: var(--surface-base);
+  color: var(--text);
+  border: none;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-body);
+  font-weight: var(--font-semi);
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity var(--transition-fast);
+}
+.btn-dark:active { opacity: 0.8; }
+.btn-dark:disabled { opacity: 0.45; cursor: default; }
+
+/* Compact dark pill — in-card buttons (Изменить, Показать, Активировать, Обменять…) */
+.btn-dark--sm {
+  width: auto;
+  margin-inline: 0;
+  padding: 6px 16px;
+  font-size: var(--text-body);
+  font-weight: var(--font-regular);
+}
+
+.btn-pink {
+  width: var(--btn-max);
+  max-width: 100%;
+  margin-inline: auto;
+  padding: var(--space-md);
+  background: var(--accent-grad);
+  color: var(--text);
+  border: none;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-body);
+  font-weight: var(--font-semi);
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity var(--transition-fast);
+}
+.btn-pink:active { opacity: 0.8; }
+.btn-pink:disabled { opacity: 0.45; cursor: default; }
+
+/* Compact pink — for in-card "Получить", "Старт" buttons */
+.btn-pink--sm {
+  width: auto;
+  padding: 7px 16px;
+  font-size: var(--text-small);
+  font-weight: var(--font-bold);
+}
+
+/* Outline pink — for secondary "Старт"-like CTAs */
+.btn-pink--ghost {
+  width: auto;
+  padding: 7px 16px;
+  background: var(--accent-soft);
+  border: 1px solid rgba(233,30,140,0.5);
+  color: var(--text);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-small);
+  font-weight: var(--font-semi);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.btn-tg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: var(--btn-max);
+  max-width: 100%;
+  margin-inline: auto;
+  padding: var(--space-md);
+  background: var(--tg-blue);
+  color: var(--text);
+  border: none;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-small);
+  font-weight: var(--font-bold);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* Ghost / text */
+.btn-ghost {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+  padding: var(--space-xs) var(--space-md);
+  border-radius: var(--radius-pill);
+}
+
+/* ============================================================
+   Bottom nav (kept as-is, BottomNav.jsx uses these classes)
+   ============================================================ */
+.bottom-nav {
+  position: fixed;
+  bottom: 56px;
+  left: 54px;
+  right: 54px;
+  height: 54px;
+  background: var(--surface-base);
+  border-radius: 37px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  z-index: var(--z-nav);
+}
+
+.nav-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.4);
+  cursor: pointer;
+  width: 46px;
+  height: 50px;
+  border-radius: 25px;
+  transition: color var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.nav-btn.active { color: var(--text); }
+
+.nav-btn-indicator {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: rgba(43, 43, 43, 1);
+  pointer-events: none;
+}
+
+.nav-btn svg {
+  height: 26px;
+  width: auto;
+  position: relative;
+  z-index: var(--z-base);
+}
+
+/* Оптическая компенсация для самолётика (Мэтчи): масса формы тянет
+   вправо-вверх, нос упирается в край круга — чуть смещаем влево и вниз */
+.nav-btn svg.nav-icon-send { transform: translate(-2px, 1px); }
+
+/* ============================================================
+   Misc
+   ============================================================ */
+.hidden        { display: none; }
+.relative      { position: relative; }
+.absolute      { position: absolute; }
+.absolute-fill { position: absolute; inset: 0; }
+.no-select     { user-select: none; }
+.pointer       { cursor: pointer; }
+.no-pointer    { pointer-events: none; }
+.overflow-hidden { overflow: hidden; }
+.truncate {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
