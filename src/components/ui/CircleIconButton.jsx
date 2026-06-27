@@ -17,14 +17,10 @@ export default function CircleIconButton({
       type="button"
       onClick={onClick}
       aria-label={ariaLabel}
-      className={['glass-soft center', className].filter(Boolean).join(' ')}
+      className={['circle-icon-button', 'glass-soft', 'center', className].filter(Boolean).join(' ')}
       style={{
         width: size,
         height: size,
-        borderRadius: '50%',
-        border: 'none',
-        cursor: 'pointer',
-        flexShrink: 0,
         ...style,
       }}
     >

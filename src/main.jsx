@@ -2,6 +2,9 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import './styles.css'
+import { installImageRecovery } from './utils/imageRecovery.js'
+
+installImageRecovery()
 
 // Init Telegram WebApp
 if (window.Telegram?.WebApp) {

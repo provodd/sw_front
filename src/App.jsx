@@ -32,8 +32,11 @@ export default function App() {
   const [onboardingStep, setOnboardingStep] = useState(0)
   const [profileData, setProfileData] = useState({})
   const [tab, setTab] = useState('search')
+  const [profileResetSignal, setProfileResetSignal] = useState(0)
   const [screen, setScreen] = useState('app') // app | premium
   const [viewingUserId, setViewingUserId] = useState(null)
+  const [viewingUserPreview, setViewingUserPreview] = useState(null)
+  const [profileSwipeRequest, setProfileSwipeRequest] = useState(null)
   const [showDailyLogin, setShowDailyLogin] = useState(false)
   const [memeStep, setMemeStep] = useState(null) // null | 'intro' | 'test' — мем-тест после регистрации
 
@@ -68,6 +71,9 @@ export default function App() {
       await api.createProfile({
         name: merged.name,
         age: merged.age,
+        birth_day: merged.birth_day,
+        birth_month: merged.birth_month,
+        birth_year: merged.birth_year,
         gender: merged.gender,
         lat: merged.geo?.lat,
         lng: merged.geo?.lng,
@@ -95,8 +101,18 @@ export default function App() {
   const handleOpenProfile = useCallback((userOrLike) => {
     // Принимаем объект с полем id или user_id
     const id = userOrLike?.id || userOrLike?.user_id
-    if (id) setViewingUserId(id)
+    if (id) {
+      setViewingUserPreview(userOrLike)
+      setViewingUserId(id)
+    }
   }, [])
+
+  const handleSetTab = useCallback((nextTab) => {
+    if (nextTab === 'profile' && tab === 'profile') {
+      setProfileResetSignal(signal => signal + 1)
+    }
+    setTab(nextTab)
+  }, [tab])
 
   if (!splashDone) return <Splash onDone={() => setSplashDone(true)} />
 
@@ -153,37 +169,59 @@ export default function App() {
       <div className="app-content">
         {tab === 'search' && (
           <SwipeScreen
+            currentUser={user}
             isPremium={isPremium}
             userGender={user?.profile?.gender}
             onOpenProfile={handleOpenProfile}
             onBuyPremium={() => setScreen('premium')}
+            externalSwipeRequest={profileSwipeRequest}
           />
         )}
         {tab === 'likes' && (
           <LikesScreen
             onBuyPremium={() => setScreen('premium')}
             onOpenProfile={handleOpenProfile}
+            onGoSearch={() => setTab('search')}
           />
         )}
-        {tab === 'matches' && <MatchesScreen />}
+        {tab === 'matches' && <MatchesScreen onOpenProfile={handleOpenProfile} />}
         {tab === 'achievements' && <AchievementsScreen />}
         {tab === 'profile' && (
           <ProfileScreen
             user={user}
+            resetSignal={profileResetSignal}
             onBuyPremium={() => setScreen('premium')}
             onUpdate={setUser}
+            onShowProfile={profile => {
+              setViewingUserPreview({
+                ...profile,
+                is_own: true,
+                photos: (profile?.photos || []).map(photo => photo?.url || photo),
+              })
+              setViewingUserId(profile?.id || user?.profile?.id || user?.id)
+            }}
           />
         )}
       </div>
-      <BottomNav tab={tab} setTab={setTab} />
+      <BottomNav tab={tab} setTab={handleSetTab} />
 
       {/* Просмотр профиля другого пользователя */}
       {viewingUserId && (
         <UserProfileScreen
           userId={viewingUserId}
-          onBack={() => setViewingUserId(null)}
-          onSwipe={async (type, userId) => {
-            await api.swipe(userId, type)
+          preview={viewingUserPreview}
+          currentUser={user}
+          onBack={() => {
+            setViewingUserId(null)
+            setViewingUserPreview(null)
+          }}
+          onSwipe={async (type, userId, message) => {
+            setProfileSwipeRequest({
+              type,
+              userId,
+              message,
+              nonce: Date.now(),
+            })
           }}
         />
       )}

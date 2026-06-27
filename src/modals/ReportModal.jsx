@@ -14,6 +14,8 @@ export default function ReportModal({ user, onClose, onReport }) {
 
   return (
     <BottomSheet onClose={onClose}>
+      {closeSheet => (
+      <>
       <div className="row mb-lg" style={{ gap: 12 }}>
         {(user?.photos?.[0] || user?.photo) && (
           <img
@@ -46,12 +48,14 @@ export default function ReportModal({ user, onClose, onReport }) {
       </div>
 
       <button
-        onClick={() => { if (reason) { onReport?.(user, reason); onClose() } }}
+        onClick={() => { if (reason) { onReport?.(user, reason); closeSheet() } }}
         disabled={!reason}
         className="btn-dark"
       >
         Отправить жалобу
       </button>
+      </>
+      )}
     </BottomSheet>
   )
 }

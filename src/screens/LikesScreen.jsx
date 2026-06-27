@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react'
 import api from '../api.js'
-import BottomSheet from '../components/BottomSheet.jsx'
-import Sticker from '../components/Sticker.jsx'
-import { Screen, ScreenHeader, EmptyState, LoadingState, VerifiedBadge, FadeOverlay } from '../components/ui'
+import { Screen, ScreenHeader, EmptyState, LoadingState, VerifiedBadge, PremiumBadge, FadeOverlay } from '../components/ui'
+import { getSwipeProgress, registerSwipe, SWIPES_TO_UNLOCK_LIKES } from '../utils/swipeProgress.js'
 
-export default function LikesScreen({ onBuyPremium, onOpenProfile }) {
+export default function LikesScreen({ onBuyPremium, onOpenProfile, onGoSearch }) {
   const [likes, setLikes] = useState([])
   const [isPremium, setIsPremium] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [showCantSeeModal, setShowCantSeeModal] = useState(false)
+  const [swipeProgress, setSwipeProgress] = useState(getSwipeProgress)
+  const [isCounterShaking, setIsCounterShaking] = useState(false)
 
   useEffect(() => {
     api.getLikes().then(data => {
@@ -17,9 +17,16 @@ export default function LikesScreen({ onBuyPremium, onOpenProfile }) {
     }).catch(console.error).finally(() => setLoading(false))
   }, [])
 
+  useEffect(() => {
+    const update = event => setSwipeProgress(event.detail ?? getSwipeProgress())
+    window.addEventListener('swaypik:swipe-progress', update)
+    return () => window.removeEventListener('swaypik:swipe-progress', update)
+  }, [])
+
   const handleAction = async (like, action) => {
     try {
       await api.swipe(like.user_id, action)
+      registerSwipe()
       setLikes(prev => prev.filter(l => l.user_id !== like.user_id))
     } catch (e) {
       console.error(e)
@@ -30,6 +37,24 @@ export default function LikesScreen({ onBuyPremium, onOpenProfile }) {
 
   const topLike = likes[0]
   const restLikes = likes.slice(1)
+  const remainingSwipes = Math.max(0, SWIPES_TO_UNLOCK_LIKES - swipeProgress)
+  const likesUnlocked = isPremium || remainingSwipes === 0
+  const openLikeProfile = (like) => {
+    onOpenProfile?.({
+      ...like,
+      id: like.user_id || like.id,
+      from_likes: true,
+      is_liker: true,
+      photos: like.photos || (like.photo ? [like.photo] : undefined),
+    })
+  }
+  const nudgeUnlockCounter = () => {
+    try {
+      window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.('error')
+    } catch { /* browser noop */ }
+    setIsCounterShaking(false)
+    window.requestAnimationFrame(() => setIsCounterShaking(true))
+  }
 
   return (
     <Screen withNav>
@@ -48,12 +73,12 @@ export default function LikesScreen({ onBuyPremium, onOpenProfile }) {
               like={topLike}
               onAccept={() => handleAction(topLike, 'like')}
               onReject={() => handleAction(topLike, 'dislike')}
-              onOpen={() => onOpenProfile?.(topLike)}
+              onOpen={() => openLikeProfile(topLike)}
             />
           )}
 
           {restLikes.length > 0 && (
-            isPremium ? (
+            likesUnlocked ? (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 {restLikes.map((like, i) => (
                   <LikeCard
@@ -61,14 +86,14 @@ export default function LikesScreen({ onBuyPremium, onOpenProfile }) {
                     like={like}
                     onAccept={() => handleAction(like, 'like')}
                     onReject={() => handleAction(like, 'dislike')}
-                    onOpen={() => onOpenProfile?.(like)}
+                    onOpen={() => openLikeProfile(like)}
                   />
                 ))}
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 {restLikes.map((like, i) => (
-                  <BlurredCard key={i} like={like} onTap={() => setShowCantSeeModal(true)} />
+                  <BlurredCard key={i} like={like} onTap={nudgeUnlockCounter} />
                 ))}
               </div>
             )
@@ -76,40 +101,39 @@ export default function LikesScreen({ onBuyPremium, onOpenProfile }) {
         </div>
       )}
 
-      {!isPremium && restLikes.length > 0 && (
-        <div style={{ position: 'sticky', bottom: 16, padding: '0 var(--gutter)', marginTop: 8 }}>
-          <button onClick={() => setShowCantSeeModal(true)} className="btn-dark">
-            Узнайте, кто вас лайкнул
+      {!likesUnlocked && restLikes.length > 0 && (
+        <div className="likes-unlock-cta">
+          <button
+            onClick={onGoSearch}
+            onAnimationEnd={() => setIsCounterShaking(false)}
+            className={`btn-dark ${isCounterShaking ? 'is-shaking' : ''}`}
+          >
+            Лайки откроются через {remainingSwipes} свайпов
           </button>
         </div>
       )}
 
-      {showCantSeeModal && (
-        <CantSeeLikesModal
-          onClose={() => setShowCantSeeModal(false)}
-          onBuyPremium={() => { setShowCantSeeModal(false); onBuyPremium?.() }}
-        />
-      )}
     </Screen>
   )
 }
 
 function TopLikeCard({ like, onAccept, onReject, onOpen }) {
   return (
-    <div className="overflow-hidden relative pointer" style={{ borderRadius: 30, height: 246 }} onClick={onOpen}>
+    <div className="top-like-card overflow-hidden relative pointer" onClick={onOpen}>
       <img src={like.photo} alt="" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       <FadeOverlay position="bottom" height="60%" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.75) 0%, transparent 100%)' }} />
 
       {like.type === 'super' && (
-        <div className="emoji-md" style={{ position: 'absolute', top: 11, right: 11 }}>😍</div>
+        <img className="top-like-card__superlike" src="/icons/superlike.svg" alt="Суперлайк" />
       )}
 
-      <div style={{ position: 'absolute', bottom: 50, left: 20, right: 20 }}>
+      <div className="top-like-card__copy">
         <div className="row mb-2xs" style={{ gap: 6 }}>
           <span className="text-h2" style={{ textShadow: '0px 3px 2px rgba(0,0,0,0.25)' }}>
             {like.name}, {like.age}
           </span>
           {like.verified && <VerifiedBadge size={22} />}
+          {like.is_premium && <PremiumBadge size={22} />}
         </div>
         {like.bio && (
           <p className="text-small text-muted leading-snug" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.4)' }}>
@@ -118,19 +142,13 @@ function TopLikeCard({ like, onAccept, onReject, onOpen }) {
         )}
       </div>
 
-      <div className="row" style={{ position: 'absolute', bottom: 0, left: 0, right: 0, gap: 16, padding: '0 20px 12px' }} onClick={e => e.stopPropagation()}>
-        <button onClick={onReject} className="flex-1 center" style={{
-          height: 40, background: 'var(--surface-base)', border: 'none',
-          borderRadius: 40, cursor: 'pointer', fontFamily: 'inherit',
-        }}>
+      <div className="top-like-card__actions row" onClick={e => e.stopPropagation()}>
+        <button onClick={onReject} className="like-card__action glass-light flex-1 center">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
             <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
           </svg>
         </button>
-        <button onClick={onAccept} className="flex-1 center" style={{
-          height: 40, background: 'var(--accent-grad)', border: 'none',
-          borderRadius: 40, cursor: 'pointer', fontFamily: 'inherit',
-        }}>
+        <button onClick={onAccept} className="like-card__action glass-light flex-1 center">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
             <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
           </svg>
@@ -148,49 +166,21 @@ function BlurredCard({ like, onTap }) {
   )
 }
 
-function CantSeeLikesModal({ onClose, onBuyPremium }) {
-  return (
-    <BottomSheet onClose={onClose}>
-      <div className="stack-lg center" style={{ paddingTop: 8 }}>
-        <Sticker index={0} size={196} />
-        <div className="text-center">
-          <h2 className="text-h1 mb-lg">Кто же это...</h2>
-          <p className="text-body text-muted">
-            Только Premium пользователи могут видеть, кто их лайкнул
-          </p>
-        </div>
-        <button onClick={onBuyPremium} className="btn-dark">
-          Получить Premium
-        </button>
-        <button onClick={onClose} className="btn-ghost text-body text-muted">
-          Закрыть
-        </button>
-      </div>
-    </BottomSheet>
-  )
-}
-
 function LikeCard({ like, onAccept, onReject, onOpen }) {
   return (
-    <div className="relative overflow-hidden pointer" style={{ height: 250, borderRadius: 30, background: '#111' }} onClick={onOpen}>
+    <div className="like-card relative overflow-hidden pointer" onClick={onOpen}>
       <img src={like.photo} alt="" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       <FadeOverlay position="bottom" height="55%" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.75) 0%, transparent 100%)' }} />
-      <div style={{ position: 'absolute', bottom: 36, left: 10 }}>
+      <div className="like-card__name">
         <span className="text-small font-bold">{like.name}, {like.age}</span>
       </div>
-      <div className="row" style={{ position: 'absolute', bottom: 6, left: 0, right: 0, gap: 6, padding: '0 8px' }} onClick={e => e.stopPropagation()}>
-        <button onClick={onReject} className="flex-1 center" style={{
-          height: 32, background: 'rgba(0,0,0,0.7)', border: 'none',
-          borderRadius: 30, cursor: 'pointer', fontFamily: 'inherit',
-        }}>
+      <div className="like-card__actions row" onClick={e => e.stopPropagation()}>
+        <button onClick={onReject} className="like-card__action glass-light flex-1 center">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
             <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
           </svg>
         </button>
-        <button onClick={onAccept} className="flex-1 center" style={{
-          height: 32, background: 'var(--accent-grad)', border: 'none',
-          borderRadius: 30, cursor: 'pointer', fontFamily: 'inherit',
-        }}>
+        <button onClick={onAccept} className="like-card__action glass-light flex-1 center">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="white">
             <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
           </svg>

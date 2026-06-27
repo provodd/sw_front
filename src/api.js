@@ -18,7 +18,7 @@ const CONFIG = {
   //   'banned'     — экран бана
   scenario: 'app',
 
-  premium: true,        // true — все фичи открыты; false — пейволлы + блюр лайков
+  premium: false,       // true — все фичи открыты; false — пейволлы + блюр лайков
   dailyReward: false,   // true — при входе всплывёт модалка ежедневной награды
   emptyFeed: false,     // true — в поиске «люди закончились»
   emptyLikes: false,    // true — нет входящих лайков
@@ -32,11 +32,32 @@ const future = (days) => new Date(Date.now() + days * 864e5).toISOString()
 
 const PHOTO = (seed, w = 600) => `https://picsum.photos/seed/${seed}/${w}/${Math.round(w * 1.4)}`
 
+function calculateAgeFromBirth(profile) {
+  const day = Number(profile?.birth_day)
+  const month = Number(profile?.birth_month)
+  const year = Number(profile?.birth_year)
+  if (!day || !month || !year) return profile?.age
+
+  const today = new Date()
+  let age = today.getFullYear() - year
+  const birthdayThisYear = new Date(today.getFullYear(), month - 1, day)
+  if (today < birthdayThisYear) age -= 1
+  return age
+}
+
+function withComputedAge(profile) {
+  if (!profile) return profile
+  return { ...profile, age: calculateAgeFromBirth(profile) ?? profile.age }
+}
+
 // ─── изменяемое состояние сессии (живёт до перезагрузки страницы) ────────────
 const DEFAULT_PROFILE = {
   id: 999,
   name: 'Алекс',
   age: 25,
+  birth_day: 26,
+  birth_month: 6,
+  birth_year: 2001,
   gender: 'male',
   city: 'Москва',
   bio: 'Тестовый профиль песочницы. Меняй дизайн смело 🎨',
@@ -48,7 +69,7 @@ const DEFAULT_PROFILE = {
     { id: 1, url: PHOTO('me-1') },
     { id: 2, url: PHOTO('me-2') },
   ],
-  superlike_daily: 3,
+  superlike_daily: CONFIG.premium ? 5 : 1,
   swipe_coins: 1250,
   booster_active: false,
   booster_until: null,
@@ -60,10 +81,10 @@ const state = {
 }
 
 function buildUser() {
-  if (CONFIG.scenario === 'onboarding') return { id: 1, profile: state.profile }
+  if (CONFIG.scenario === 'onboarding') return { id: 1, profile: withComputedAge(state.profile) }
   if (CONFIG.scenario === 'invite')     return { id: 1, invite_only_required: true }
-  if (CONFIG.scenario === 'banned')     return { id: 1, profile: state.profile, is_banned: true }
-  return { id: 1, profile: state.profile, is_premium: CONFIG.premium }
+  if (CONFIG.scenario === 'banned')     return { id: 1, profile: withComputedAge(state.profile), is_banned: true }
+  return { id: 1, profile: withComputedAge(state.profile), is_premium: CONFIG.premium }
 }
 
 // ─── фейковые данные ────────────────────────────────────────────────────────
@@ -72,7 +93,7 @@ const FEED = [
   { id: 12, name: 'Алина',    age: 20, distance: '3 км', city: 'Москва',   verified: true,  compatibility: 78, bio: 'Кофе, книги и хорошая музыка ☕',       photos: [PHOTO('a1')] },
   { id: 13, name: 'Валерия',  age: 23, distance: '5 км', city: 'Подольск', verified: false, compatibility: 64, bio: 'Фотограф и любитель природы 📸',         photos: [PHOTO('v1'), PHOTO('v2')] },
   { id: 14, name: 'Виктория', age: 26, distance: '2 км', city: 'Москва',   verified: true,  compatibility: 45, bio: 'Твои родители случайно не Запашные?)',    photos: [PHOTO('vi1')] },
-  { id: 15, name: 'Диана',    age: 22, distance: '7 км', city: 'Химки',    verified: false, compatibility: 88, bio: 'Танцую, пою, мечтаю 🌙',                 photos: [PHOTO('d1')] },
+  { id: 15, name: 'Диана',    age: 22, distance: '7 км', city: 'Химки',    verified: false, compatibility: 88, bio: 'Танцую, пою, мечтаю 🌙',                 photos: [PHOTO('d1')], has_liked_me: true },
 ]
 
 const LIKES = [
@@ -84,9 +105,9 @@ const LIKES = [
 ]
 
 const MATCHES = [
-  { id: 31, name: 'Кристина', age: 24, verified: true,  username: 'kristina_tg', is_online: true,  photo: PHOTO('m1', 200) },
-  { id: 32, name: 'Лера',     age: 19, verified: true,  username: 'lera_tg',     is_online: false, photo: PHOTO('m2', 200) },
-  { id: 33, name: 'Оксана',   age: 26, verified: false, username: 'oksana_tg',   is_online: false, photo: PHOTO('m3', 200) },
+  { ...FEED[0], id: 31, user_id: FEED[0].id, username: 'kristina_tg', is_unviewed: true,  photo: FEED[0].photos[0] },
+  { ...FEED[1], id: 32, user_id: FEED[1].id, username: 'alina_tg',    is_unviewed: false, photo: FEED[1].photos[0] },
+  { ...FEED[2], id: 33, user_id: FEED[2].id, username: 'valeria_tg',  is_unviewed: false, photo: FEED[2].photos[0] },
 ]
 
 const MEMES = Array.from({ length: 14 }, (_, i) => ({
@@ -120,19 +141,26 @@ const REFERRAL = {
 }
 
 const EXCHANGE_PLANS = [
-  { key: 'sl_1',    coins: 300,  reward: '1 суперлайк',   type: 'superlike' },
-  { key: 'sl_5',    coins: 1200, reward: '5 суперлайков', type: 'superlike' },
-  { key: 'boost_1', coins: 800,  reward: '1 бустер',      type: 'booster' },
+  { key: 'boost_1',      coins: 500,  reward: 'Бустер',                  type: 'booster' },
+  { key: 'undo_10',      coins: 700,  reward: '10 возвратов',            type: 'undo' },
+  { key: 'sl_10',        coins: 1000, reward: '10 суперлайков',          type: 'superlike' },
+  { key: 'premium_1mo',  coins: 5000, reward: 'Premium-аккаунт (1мес)',  type: 'premium' },
 ]
 
 function fullUserProfile(userId) {
-  const base = FEED.find(u => u.id === userId) || LIKES.find(u => u.id === userId) || FEED[0]
+  const match = MATCHES.find(m => m.id === userId || m.user_id === userId)
+  const base = FEED.find(u => u.id === userId)
+    || FEED.find(u => u.id === match?.user_id)
+    || LIKES.find(u => u.id === userId)
+    || match
+    || FEED[0]
   return {
     id: userId,
     name: base.name,
     age: base.age,
     verified: base.verified,
     city: base.city || 'Москва',
+    distance: base.distance,
     bio: base.bio || 'Привет! Это тестовая анкета песочницы.',
     photos: base.photos || [PHOTO(`u${userId}-1`), PHOTO(`u${userId}-2`)],
     compatibility: base.compatibility ?? 73,
@@ -141,7 +169,7 @@ function fullUserProfile(userId) {
     zodiac: 'Весы',
     height: 170,
     kids: 'Без детей',
-    alcohol: 'Иногда',
+    alcohol: 'Иногда выпиваю',
     smoke: 'Не курю',
     achievements: [
       { key: 'pioneer', title: 'Первопроходец', color: '#E91E8C', icon: '👟' },
@@ -164,14 +192,14 @@ const api = {
   logout()       { return ok() },
 
   // ── Profile ──
-  getProfile()   { return ok({ profile: state.profile }) },
+  getProfile()   { return ok({ profile: withComputedAge(state.profile) }) },
   createProfile(data) {
     state.profile = { ...DEFAULT_PROFILE, ...data, photos: state.profile?.photos || DEFAULT_PROFILE.photos }
-    return ok({ profile: state.profile })
+    return ok({ profile: withComputedAge(state.profile) })
   },
   updateProfile(data) {
     state.profile = { ...state.profile, ...data }
-    return ok({ profile: state.profile })
+    return ok({ profile: withComputedAge(state.profile) })
   },
   uploadPhoto(file) {
     const url = (typeof URL !== 'undefined' && URL.createObjectURL) ? URL.createObjectURL(file) : PHOTO('upload' + Date.now())
@@ -188,9 +216,21 @@ const api = {
   swipe(targetUserId, type) {
     const u = FEED.find(x => x.id === targetUserId)
     const isMatch = type === 'super' && !!u
+    const lostMatch = type === 'dislike' && !!(u?.has_liked_me || u?.liked_me || u?.is_liker)
+    if (type === 'super') {
+      const currentLeft = Number(state.profile?.superlike_daily ?? 0)
+      if (currentLeft <= 0) {
+        return Promise.reject(new Error('Лимит суперлайков исчерпан'))
+      }
+      state.profile = {
+        ...state.profile,
+        superlike_daily: Math.max(0, currentLeft - 1),
+      }
+    }
     return ok({
-      superlike_left: 5,
+      superlike_left: state.profile?.superlike_daily ?? 0,
       is_match: isMatch,
+      lost_match: lostMatch,
       match_user: isMatch ? { id: u.id, name: u.name, photo: u.photos?.[0], username: 'mock_user' } : null,
     })
   },
@@ -248,7 +288,7 @@ const api = {
   // ── User Profile (просмотр чужой анкеты) ──
   getUserProfile(userId) { return ok({ user: fullUserProfile(userId) }) },
   revealContact()        { return ok({ username: 'mock_user' }) },
-  getRevealPrice()       { return ok({ price: 5 }) },
+  getRevealPrice()       { return ok({ price: 1000 }) },
 
   getToken,
   setToken,

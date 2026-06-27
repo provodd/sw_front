@@ -11,6 +11,8 @@ export default function InterestsModal({ current = [], onClose, onSave }) {
 
   return (
     <BottomSheet onClose={onClose}>
+      {closeSheet => (
+      <>
       <h2 className="text-h2 font-extra text-tight text-center mb-lg">Интересы</h2>
 
       <div className="cluster-sm" style={{ justifyContent: 'center', marginBottom: 28 }}>
@@ -29,9 +31,11 @@ export default function InterestsModal({ current = [], onClose, onSave }) {
         })}
       </div>
 
-      <button onClick={() => { onSave?.(selected); onClose() }} className="btn-dark">
+      <button onClick={() => { onSave?.(selected); closeSheet() }} className="btn-dark">
         Сохранить
       </button>
+      </>
+      )}
     </BottomSheet>
   )
 }

@@ -1,6 +1,13 @@
 import { useState, useEffect } from 'react'
 import api from '../api.js'
+import BottomSheet from '../components/BottomSheet.jsx'
+import TelegramIcon from '../components/icons/TelegramIcon.jsx'
 import { Screen, ScreenHeader, LoadingState } from '../components/ui'
+import {
+  ACHIEVEMENT_CATALOG,
+  readVisibleAchievementKeys,
+  writeVisibleAchievementKeys,
+} from '../data/achievements.js'
 
 export default function AchievementsScreen() {
   const [tab, setTab] = useState('achievements')
@@ -9,6 +16,8 @@ export default function AchievementsScreen() {
   const [referral, setReferral] = useState(null)
   const [loading, setLoading] = useState(true)
   const [claimingTask, setClaimingTask] = useState(null)
+  const [selectedAchievement, setSelectedAchievement] = useState(null)
+  const [visibleAchievementKeys, setVisibleAchievementKeys] = useState(() => readVisibleAchievementKeys())
 
   useEffect(() => {
     Promise.all([
@@ -17,6 +26,7 @@ export default function AchievementsScreen() {
       api.getReferral().catch(() => null),
     ]).then(([achData, taskData, refData]) => {
       setAchievements(achData.achievements)
+      setVisibleAchievementKeys(readVisibleAchievementKeys(achData.achievements.filter(item => item.earned).map(item => item.key)))
       setTasks(taskData.tasks)
       setReferral(refData)
     }).catch(console.error).finally(() => setLoading(false))
@@ -88,6 +98,19 @@ export default function AchievementsScreen() {
     setTasks(prev => prev.map(t => t.key === taskKey ? { ...t, _opened: true } : t))
   }
 
+  const handleAchievementVisibilityChange = (key, visible) => {
+    setVisibleAchievementKeys(prev => {
+      const next = new Set(prev)
+      if (visible) {
+        next.add(key)
+      } else {
+        next.delete(key)
+      }
+      writeVisibleAchievementKeys(next)
+      return next
+    })
+  }
+
   if (loading) {
     return (
       <Screen variant="black">
@@ -96,114 +119,94 @@ export default function AchievementsScreen() {
     )
   }
 
+  const achievementByKey = new Map(achievements.map(item => [item.key, item]))
+  const achievementCards = ACHIEVEMENT_CATALOG.map(item => ({
+    ...item,
+    ...achievementByKey.get(item.key),
+    title: item.title,
+    desc: item.desc,
+    image: item.image,
+    tone: item.tone,
+    percent: achievementByKey.get(item.key)?.percent ?? '100%',
+    earned: achievementByKey.get(item.key)?.earned ?? false,
+  }))
+  const earnedAchievements = achievementCards.filter(item => item.earned)
+  const lockedAchievements = achievementCards.filter(item => !item.earned)
+
   return (
-    <Screen variant="black" withNav>
+    <Screen variant="black" withNav className="achievements-screen">
       <ScreenHeader title="АЧИВКИ И ЗАДАНИЯ" />
 
-      {/* Promo banner — unique Figma layout, kept inline */}
-      <div className="overflow-hidden relative" style={{
-        margin: '16px var(--gutter) 0',
-        borderRadius: 30,
-        backgroundImage: 'linear-gradient(172.52813766999773deg, rgb(249, 26, 134) 178.28%, rgb(0, 0, 0) 163.52%)',
-        backgroundColor: 'var(--surface-base)',
-        height: 157,
-      }}>
-        <div className="row" style={{
-          position: 'absolute', left: '50%', top: 'calc(50% + 0.5px)',
-          transform: 'translate(-50%, -50%)', gap: 26, width: 309,
-        }}>
-          <img src="/icons/legend-badge.png" alt=""
-            style={{ width: 92, height: 102, objectFit: 'contain', flexShrink: 0 }} />
-          <div className="stack-md" style={{ width: 189, gap: 16 }}>
+      <div className="achievements-promo overflow-hidden relative">
+        <div className="achievements-promo__content row">
+          <img className="achievements-promo__image" src="/images/achievements/legend.png" alt="" />
+          <div className="achievements-promo__copy stack-md">
             <p className="text-body">Выполняй задания</p>
             <p className="text-body">Открывай достижения</p>
             <p className="text-body">Зарабатывай свайп-очки</p>
           </div>
         </div>
-        <p className="text-caption text-ink" style={{
-          position: 'absolute', top: 139, left: 'calc(50% - 122.5px)',
-          width: 246,
-        }}>
+        <p className="achievements-promo__caption text-caption text-ink">
           И меняй их на улучшения и Premium-подписку!
         </p>
       </div>
 
-      {/* Segmented control — unique mix-blend-mode glass, kept inline */}
-      <div className="px-gutter" style={{
-        padding: '16px var(--gutter) 12px',
-        position: 'sticky', top: 0,
-        background: 'var(--surface-base)', zIndex: 'var(--z-sticky)',
-      }}>
-        <div className="row overflow-hidden relative" style={{
-          gap: 5, height: 54, borderRadius: 123, padding: 5,
+      {/* Segmented control */}
+      <div className="achievements-tabs px-gutter">
+        <div className="segmented-control" style={{
+          '--segment-index': ['achievements', 'tasks', 'invites'].indexOf(tab),
+          '--segment-count': 3,
         }}>
-          <div className="absolute-fill no-pointer" style={{ background: 'rgba(0,0,0,0.1)', mixBlendMode: 'luminosity', borderRadius: 'inherit' }} />
-          <div className="absolute-fill no-pointer" style={{ background: 'rgba(208,208,208,0.5)', mixBlendMode: 'color-burn', borderRadius: 'inherit' }} />
-
+          <span className="segmented-control__indicator" aria-hidden="true" />
           {[
             { key: 'achievements', label: 'Ачивки' },
             { key: 'tasks', label: 'Задания' },
             { key: 'invites', label: 'Инвайты' },
-          ].map(t =>
-            tab === t.key ? (
-              <div
-                key={t.key}
-                onClick={() => setTab(t.key)}
-                className="flex-1 relative overflow-hidden center pointer"
-                style={{
-                  borderRadius: 30,
-                  border: '0.759px solid rgba(255,255,255,0.4)',
-                  boxShadow: '0px 3.035px 6.07px rgba(0,0,0,0.1)',
-                }}
-              >
-                <div className="absolute-fill no-pointer" style={{ background: 'rgba(255,255,255,0.06)', mixBlendMode: 'lighten' }} />
-                <div className="absolute-fill no-pointer" style={{ background: '#5e5e5e', mixBlendMode: 'color-dodge' }} />
-                <span className="text-h3 font-regular" style={{ position: 'relative', zIndex: 1 }}>
-                  {t.label}
-                </span>
-              </div>
-            ) : (
-              <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
-                className="flex-1 relative pointer text-h3 font-regular text-ink"
-                style={{
-                  height: '100%', background: 'transparent', border: 'none',
-                  fontFamily: 'inherit', borderRadius: 100, zIndex: 1,
-                }}
-              >
-                {t.label}
-              </button>
-            )
-          )}
-
-          <div className="absolute-fill no-pointer" style={{
-            borderRadius: 'inherit',
-            boxShadow: 'inset 0px -0.616px 1.232px rgba(255,255,255,0.3), inset 0px -0.616px 1.232px rgba(255,255,255,0.25), inset 1.232px 1.848px 4.928px rgba(0,0,0,0.08), inset 1.232px 1.848px 4.928px rgba(0,0,0,0.1)',
-          }} />
+          ].map(t => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setTab(t.key)}
+              className={`segmented-control__item text-body ${tab === t.key ? 'is-active' : ''}`}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      <div style={{ padding: '8px var(--gutter) 24px' }}>
+      <div className="achievements-content">
         {tab === 'achievements' && (
           <>
-            {achievements.filter(a => a.earned).length > 0 && (
+            {earnedAchievements.length > 0 && (
               <>
-                <p className="mb-sm text-body text-muted">Полученные</p>
-                <div className="stack-xs mb-lg">
-                  {achievements.filter(a => a.earned).map(a => <AchievementCard key={a.key} achievement={a} />)}
+                <p className="achievements-section-title text-body text-muted">Полученные</p>
+                <div className="achievements-list achievements-list--earned">
+                  {earnedAchievements.map(item => (
+                    <AchievementCard
+                      key={item.key}
+                      achievement={item}
+                      onOpen={() => setSelectedAchievement(item)}
+                    />
+                  ))}
                 </div>
               </>
             )}
-            <p className="mb-sm text-body text-muted">Не полученные</p>
-            <div className="stack-xs">
-              {achievements.filter(a => !a.earned).map(a => <AchievementCard key={a.key} achievement={a} locked />)}
+            <p className="achievements-section-title text-body text-muted">Не полученные</p>
+            <div className="achievements-list">
+              {lockedAchievements.map(item => (
+                <AchievementCard
+                  key={item.key}
+                  achievement={item}
+                  onOpen={() => setSelectedAchievement(item)}
+                />
+              ))}
             </div>
           </>
         )}
 
         {tab === 'tasks' && (
-          <div className="stack-xs">
+          <div className="tasks-list">
             {tasks.map(task => (
               <TaskCard
                 key={task.key}
@@ -228,7 +231,7 @@ export default function AchievementsScreen() {
               </p>
             </div>
 
-            <div className="stack-md mx-auto" style={{ maxWidth: 315, gap: 21, width: '100%' }}>
+            <div className="invite-codes">
               {referral?.codes && sortInvites(referral.codes, referral.share_freeze_seconds ?? 3600, now).map(c => (
                 <InviteCodeRow
                   key={c.id}
@@ -244,83 +247,94 @@ export default function AchievementsScreen() {
           </div>
         )}
       </div>
+
+      {selectedAchievement && (
+        <AchievementDetailSheet
+          achievement={selectedAchievement}
+          visibleInProfile={visibleAchievementKeys.has(selectedAchievement.key)}
+          onVisibleChange={(visible) => handleAchievementVisibilityChange(selectedAchievement.key, visible)}
+          onClose={() => setSelectedAchievement(null)}
+        />
+      )}
     </Screen>
   )
 }
 
-function AchievementCard({ achievement, locked }) {
+function AchievementCard({ achievement, onOpen }) {
   return (
-    <div className="row overflow-hidden" style={{
-      alignItems: 'stretch',
-      background: 'var(--surface-elev-1)',
-      backdropFilter: 'blur(11px)', WebkitBackdropFilter: 'blur(11px)',
-      borderRadius: 'clamp(12px, 4vw, 16px)',
-      minHeight: 'clamp(110px, 29vw, 160px)',
-    }}>
-      {/* Badge box */}
-      <div className="center relative overflow-hidden shrink-0 emoji-lg" style={{
-        width: 'clamp(100px, 26vw, 136px)',
-        margin: '11px 0 11px 11px',
-        borderRadius: 'clamp(12px, 3.5vw, 16px)',
-        background: locked
-          ? 'linear-gradient(154deg, #e2e2e2 19%, #4d4d4d 111%)'
-          : `linear-gradient(154deg, ${achievement.color}cc 19%, ${achievement.color} 111%)`,
-        opacity: locked ? 0.55 : 1,
-      }}>
-        {locked ? '🔒' : achievement.icon}
-        {!locked && (
-          <div className="absolute-fill no-pointer" style={{
-            borderRadius: 'inherit',
-            background: 'radial-gradient(ellipse at 30% 20%, rgba(255,255,255,0.25) 0%, transparent 60%)',
-          }} />
-        )}
+    <button type="button" className="achievement-card card-dark" onClick={onOpen}>
+      <div className={`achievement-card__media ${achievement.tone === 'accent' ? 'achievement-card__media--accent' : ''}`}>
+        <img className="achievement-card__image" src={achievement.image} alt="" loading="lazy" />
       </div>
 
-      {/* Right side */}
-      <div className="flex-1" style={{
-        padding: '12px 14px 10px 12px',
-        display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-      }}>
-        <div>
-          <p className="text-tight text-h3 font-extra leading-snug" style={{
-            marginBottom: 'clamp(3px, 1vw, 6px)',
-          }}>
-            {achievement.title}
-          </p>
-          <p className="text-small text-muted">
-            {achievement.desc}
-          </p>
+      <div className="achievement-card__body">
+        <div className="achievement-card__copy">
+          <h3 className="achievement-card__title text-h3 font-extra">{achievement.title}</h3>
+          <p className="achievement-card__description text-small text-muted">{achievement.desc}</p>
         </div>
-        <p className="text-caption text-dim text-right" style={{ marginTop: 4 }}>
+        <p className="achievement-card__percent text-caption text-dim text-right">
           Имеется у {achievement.percent}
         </p>
       </div>
-    </div>
+    </button>
+  )
+}
+
+function AchievementDetailSheet({ achievement, visibleInProfile, onVisibleChange, onClose }) {
+  return (
+    <BottomSheet onClose={onClose} className="achievement-detail-sheet">
+      {closeSheet => (
+        <div className="achievement-detail-sheet__content center">
+          <div className={`achievement-detail-sheet__media ${achievement.tone === 'accent' ? 'achievement-detail-sheet__media--accent' : ''}`}>
+            <img className="achievement-detail-sheet__image" src={achievement.image} alt="" />
+          </div>
+
+          <div className="achievement-detail-sheet__headline text-center">
+            <h2 className="achievement-detail-sheet__title">{achievement.title}</h2>
+            <p className="achievement-detail-sheet__subtitle">{achievement.subtitle || achievement.desc}</p>
+          </div>
+
+          <p className="achievement-detail-sheet__description text-center">
+            {achievement.detailDesc || achievement.desc}
+          </p>
+
+          {achievement.earned && (
+            <div className="achievement-detail-sheet__visibility row-between">
+              <span>Показывать в профиле</span>
+              <button
+                type="button"
+                className={`edit-profile-toggle ${visibleInProfile ? 'is-on' : ''}`}
+                onClick={() => onVisibleChange?.(!visibleInProfile)}
+                aria-pressed={visibleInProfile}
+                aria-label="Показывать ачивку в профиле"
+              >
+                <span />
+              </button>
+            </div>
+          )}
+
+          <button type="button" onClick={closeSheet} className="achievement-detail-sheet__close btn-ghost text-body">
+            Закрыть
+          </button>
+        </div>
+      )}
+    </BottomSheet>
   )
 }
 
 function InviteCodeRow({ invite, copied, disabled, onShare, onCopy }) {
   const used = invite.used
-  const opacity = used ? 0.19 : disabled ? 0.4 : 1
+  const stateClass = used ? 'is-used' : disabled ? 'is-disabled' : ''
 
   return (
-    <div className="row-between" style={{ gap: 16, alignItems: 'center', width: '100%' }}>
+    <div className={`invite-code-row ${stateClass}`}>
       <button
         onClick={disabled ? undefined : onCopy}
         disabled={disabled}
         aria-label="Скопировать код"
-        className="row pointer"
-        style={{
-          gap: 14, alignItems: 'center',
-          background: 'transparent', border: 'none', padding: 0,
-          fontFamily: 'inherit', cursor: disabled ? 'default' : 'pointer',
-          opacity,
-        }}
+        className="invite-code-row__code pointer"
       >
-        <span className="text-h2" style={{
-          color: 'var(--text)',
-          fontVariantNumeric: 'tabular-nums',
-        }}>
+        <span className="invite-code-row__value">
           {invite.code}
         </span>
         <CopyIcon copied={copied} />
@@ -329,19 +343,9 @@ function InviteCodeRow({ invite, copied, disabled, onShare, onCopy }) {
       <button
         onClick={disabled ? undefined : onShare}
         disabled={disabled}
-        className="row center pointer text-tight text-small font-medium"
-        style={{
-          gap: 8, height: 33,
-          padding: '0 14px',
-          background: 'var(--tg-blue)', border: 'none',
-          borderRadius: 49,
-          color: 'var(--text)', fontFamily: 'inherit',
-          opacity,
-          cursor: disabled ? 'default' : 'pointer',
-          minWidth: 137,
-        }}
+        className="invite-code-row__share pointer"
       >
-        <PaperPlaneIcon />
+        <TelegramIcon />
         Поделиться
       </button>
     </div>
@@ -380,79 +384,99 @@ function CopyIcon({ copied }) {
   )
 }
 
-function PaperPlaneIcon() {
+function TaskCard({ task, claiming, onSubscribe, onClaim }) {
+  const isTgTask = task.key === 'subscribe_tg'
+  const hasProgress = task.progress !== null && task.total !== null
+  const canClaim = !hasProgress || task.progress >= task.total
+  const actionState = task.done
+    ? 'done'
+    : isTgTask && !task._opened
+      ? 'start'
+      : canClaim
+        ? 'claim'
+        : 'disabled'
+
   return (
-    <svg width="18" height="15" viewBox="0 0 24 24" fill="currentColor" style={{ color: 'var(--text)' }}>
-      <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+    <div className={`task-row task-row--${actionState}`}>
+      <div className="task-row__main">
+        <TaskIcon taskKey={task.key} />
+
+        <div className="task-row__copy">
+          <p className="task-row__title">
+          {task.title}
+          </p>
+          <div className="task-row__meta">
+            {hasProgress && (
+              <span className="task-row__progress">{task.progress}/{task.total}</span>
+            )}
+            <span className="task-row__reward">
+              {task.reward_type === 'premium_3mo' ? (
+                '+Premium (3мес)'
+              ) : (
+                <>
+                  +{task.reward}
+                  <img src="/icons/coin.png" alt="" />
+                </>
+              )}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {actionState === 'done' && <TaskDoneIcon />}
+      {actionState === 'start' && (
+        <button onClick={onSubscribe} className="task-row__action task-row__action--start">
+          Старт
+        </button>
+      )}
+      {(actionState === 'claim' || actionState === 'disabled') && (
+        <button
+          onClick={onClaim}
+          disabled={claiming || actionState === 'disabled'}
+          className={`task-row__action task-row__action--${actionState}`}
+        >
+          {claiming ? '...' : 'Получить'}
+        </button>
+      )}
+    </div>
+  )
+}
+
+function TaskIcon({ taskKey }) {
+  if (taskKey === 'swipe_10') {
+    return (
+      <svg className="task-row__icon" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <path d="M5 11h19M19 6l5 5-5 5M27 21H8M13 16l-5 5 5 5" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  }
+
+  if (taskKey === 'subscribe_tg') {
+    return <TelegramIcon className="task-row__icon task-row__icon--telegram" />
+  }
+
+  if (taskKey === 'invite_5') {
+    return (
+      <svg className="task-row__icon" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <circle cx="11" cy="10" r="5" stroke="currentColor" strokeWidth="2.2" />
+        <circle cx="23.5" cy="11.5" r="4" stroke="currentColor" strokeWidth="2.2" />
+        <path d="M2.5 27c.8-6 3.7-9 8.5-9s7.7 3 8.5 9M18.5 20c1.3-1.3 2.9-2 4.9-2 3.6 0 5.8 2.4 6.1 7" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+      </svg>
+    )
+  }
+
+  return (
+    <svg className="task-row__icon" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+      <rect x="6" y="4" width="20" height="24" rx="4" stroke="currentColor" strokeWidth="2.2" />
+      <path d="M11 11h10M11 16h10M11 21h7" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
     </svg>
   )
 }
 
-function TaskCard({ task, claiming, onSubscribe, onClaim }) {
-  const isTgTask = task.key === 'subscribe_tg'
-
+function TaskDoneIcon() {
   return (
-    <div className="row" style={{
-      gap: 'clamp(10px, 3.5vw, 16px)',
-      background: 'var(--surface-elev-1)',
-      backdropFilter: 'blur(11px)', WebkitBackdropFilter: 'blur(11px)',
-      borderRadius: 'clamp(12px, 4vw, 16px)',
-      padding: 'clamp(12px, 4vw, 18px)',
-    }}>
-      <div className="center shrink-0 emoji-sm" style={{
-        width: 'clamp(38px, 10vw, 48px)', height: 'clamp(38px, 10vw, 48px)',
-        borderRadius: '50%',
-        background: task.done ? 'rgba(76,175,80,0.25)' : 'var(--accent-soft)',
-      }}>
-        {task.done ? '✅' : isTgTask ? '✈️' : '👥'}
-      </div>
-
-      <div className="flex-1">
-        <p className="text-small font-bold leading-snug" style={{
-          textDecoration: task.done ? 'line-through' : 'none',
-          opacity: task.done ? 0.5 : 1,
-        }}>
-          {task.title}
-        </p>
-        {task.progress !== null && (
-          <p className="text-faint text-small" style={{ marginTop: 2 }}>
-            {task.progress}/{task.total}
-          </p>
-        )}
-        <p className="text-small font-semi" style={{
-          color: task.reward_type === 'premium_3mo' ? 'var(--tg-blue)' : 'var(--gold)',
-          marginTop: 3,
-        }}>
-          {task.reward_type === 'premium_3mo' ? '+Premium 3 мес' : `+${task.reward} 🪙`}
-        </p>
-      </div>
-
-      {!task.done && (
-        isTgTask && !task._opened ? (
-          <button
-            onClick={onSubscribe}
-            className="btn-pink--ghost shrink-0"
-            style={{
-              padding: 'clamp(5px, 1.5vw, 8px) clamp(12px, 3.5vw, 16px)',
-            }}
-          >
-            Старт
-          </button>
-        ) : (
-          <button
-            onClick={onClaim}
-            disabled={claiming}
-            className="btn-pink--sm shrink-0"
-            style={{
-              background: 'var(--accent-grad)', border: 'none',
-              padding: 'clamp(5px, 1.5vw, 8px) clamp(12px, 3.5vw, 16px)',
-              opacity: claiming ? 0.7 : 1,
-            }}
-          >
-            {claiming ? '...' : 'Получить'}
-          </button>
-        )
-      )}
-    </div>
+    <svg className="task-row__done" viewBox="0 0 13 9" fill="none" aria-label="Выполнено">
+      <path d="m1 4.5 3.4 3.3L12 1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   )
 }

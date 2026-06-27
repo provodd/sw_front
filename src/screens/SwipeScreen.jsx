@@ -2,22 +2,63 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import api from '../api.js'
 import Sticker from '../components/Sticker.jsx'
 import BottomSheet from '../components/BottomSheet.jsx'
+import TopPush from '../components/TopPush.jsx'
+import TelegramIcon from '../components/icons/TelegramIcon.jsx'
+import StarIcon from '../components/icons/StarIcon.jsx'
 import FiltersModal from '../modals/FiltersModal.jsx'
 import SuperLikeModal from '../modals/SuperLikeModal.jsx'
-import ReportModal from '../modals/ReportModal.jsx'
-import { Screen, CircleIconButton, VerifiedBadge, FadeOverlay, LoadingState, CompatibilityBadge } from '../components/ui'
+import NoUndosModal from '../modals/NoUndosModal.jsx'
+import { Screen, CircleIconButton, VerifiedBadge, PremiumBadge, FadeOverlay, LoadingState, CompatibilityBadge } from '../components/ui'
+import { registerSwipe } from '../utils/swipeProgress.js'
 
-function SwipeCard({ user, onSwipe, isTop, onReport, onOpenProfile, onSuperLike, onUndo, onFilters, isPremium }) {
+const hapticError = () => {
+  try {
+    window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.('error')
+  } catch { /* browser noop */ }
+}
+
+function SwipeCard({ user, onSwipe, isTop, onOpenProfile, onSuperLike, onUndo, onFilters, onOpenCompatibility, isPremium }) {
   const cardRef = useRef(null)
+  const swipeTintRef = useRef(null)
   const startX = useRef(0)
   const startY = useRef(0)
   const isDragging = useRef(false)
   const dragMoved = useRef(false)
+  const isAnimatingOut = useRef(false)
   const [photoIdx, setPhotoIdx] = useState(0)
-  const [hint, setHint] = useState(null)
+
+  const resetSwipeTint = () => {
+    if (!swipeTintRef.current) return
+    swipeTintRef.current.style.opacity = '0'
+    swipeTintRef.current.classList.remove('swipe-card__tint--like', 'swipe-card__tint--dislike')
+  }
+
+  const animateSwipeOut = (dir) => {
+    if (isAnimatingOut.current) return
+    isAnimatingOut.current = true
+    if (!cardRef.current) {
+      onSwipe?.(dir, user.id)
+      return
+    }
+
+    const isLike = dir === 'like'
+    const exitX = isLike ? 600 : -600
+    const rotate = isLike ? 30 : -30
+
+    if (swipeTintRef.current) {
+      swipeTintRef.current.classList.toggle('swipe-card__tint--like', isLike)
+      swipeTintRef.current.classList.toggle('swipe-card__tint--dislike', !isLike)
+      swipeTintRef.current.style.opacity = '0.82'
+    }
+
+    cardRef.current.style.transition = 'transform 0.4s ease'
+    cardRef.current.style.transform = `translateX(${exitX}px) rotate(${rotate}deg)`
+    window.setTimeout(() => onSwipe?.(dir, user.id), 400)
+  }
 
   const onPointerDown = (e) => {
     if (!isTop) return
+    if (isAnimatingOut.current) return
     isDragging.current = true
     dragMoved.current = false
     startX.current = e.clientX
@@ -31,45 +72,54 @@ function SwipeCard({ user, onSwipe, isTop, onReport, onOpenProfile, onSuperLike,
     const dy = e.clientY - startY.current
     if (Math.abs(dx) > 5 || Math.abs(dy) > 5) dragMoved.current = true
     const rotate = dx * 0.06
-    cardRef.current.style.transform = `translateX(${dx}px) translateY(${dy * 0.3}px) rotate(${rotate}deg)`
+    cardRef.current.style.transform = `translateX(${dx}px) rotate(${rotate}deg)`
     cardRef.current.style.transition = 'none'
-    if (Math.abs(dx) > 60) setHint(dx > 0 ? 'like' : 'dislike')
-    else if (dy < -80) setHint('super')
-    else setHint(null)
+
+    if (swipeTintRef.current) {
+      const strength = Math.min(Math.abs(dx) / 180, 1)
+      swipeTintRef.current.classList.toggle('swipe-card__tint--like', dx > 0)
+      swipeTintRef.current.classList.toggle('swipe-card__tint--dislike', dx < 0)
+      swipeTintRef.current.style.opacity = String(strength * 0.82)
+    }
   }
 
   const onPointerUp = (e) => {
     if (!isDragging.current || !cardRef.current) return
     isDragging.current = false
     const dx = e.clientX - startX.current
-    const dy = e.clientY - startY.current
 
     if (Math.abs(dx) > 100) {
       const dir = dx > 0 ? 'like' : 'dislike'
-      cardRef.current.style.transition = 'transform 0.4s ease'
-      cardRef.current.style.transform = `translateX(${dx > 0 ? 600 : -600}px) rotate(${dx > 0 ? 30 : -30}deg)`
-      setTimeout(() => onSwipe(dir, user.id), 400)
-    } else if (dy < -120) {
-      cardRef.current.style.transition = 'transform 0.4s ease'
-      cardRef.current.style.transform = 'translateY(-800px)'
-      setTimeout(() => onSwipe('super', user.id), 400)
+      animateSwipeOut(dir)
     } else {
       cardRef.current.style.transition = 'transform 0.35s ease'
-      cardRef.current.style.transform = 'translateX(0) translateY(0) rotate(0deg)'
-      setHint(null)
+      cardRef.current.style.transform = 'translateX(0) rotate(0deg)'
+      resetSwipeTint()
 
       if (!dragMoved.current) {
         const rect = cardRef.current.getBoundingClientRect()
         const relX = (e.clientX - rect.left) / rect.width
-        if (user.photos?.length > 1 && relX < 0.3) {
-          setPhotoIdx(i => Math.max(i - 1, 0))
-        } else if (user.photos?.length > 1 && relX > 0.7) {
-          setPhotoIdx(i => Math.min(i + 1, user.photos.length - 1))
+        const photoCount = user.photos?.length || 0
+        if (relX < 0.3) {
+          if (photoCount > 1) setPhotoIdx(i => Math.max(i - 1, 0))
+          else hapticError()
+        } else if (relX > 0.7) {
+          if (photoCount > 1) setPhotoIdx(i => Math.min(i + 1, photoCount - 1))
+          else hapticError()
         } else {
           onOpenProfile?.(user)
         }
       }
     }
+  }
+
+  const onPointerCancel = () => {
+    isDragging.current = false
+    if (cardRef.current) {
+      cardRef.current.style.transition = 'transform 0.35s ease'
+      cardRef.current.style.transform = 'translateX(0) rotate(0deg)'
+    }
+    resetSwipeTint()
   }
 
   const stopDrag = e => e.stopPropagation()
@@ -80,6 +130,7 @@ function SwipeCard({ user, onSwipe, isTop, onReport, onOpenProfile, onSuperLike,
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
       className="overflow-hidden"
       style={{
         position: 'absolute', inset: '0 16px',
@@ -111,26 +162,23 @@ function SwipeCard({ user, onSwipe, isTop, onReport, onOpenProfile, onSuperLike,
         style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.78) 0%, transparent 100%)' }}
       />
 
+      <div ref={swipeTintRef} className="swipe-card__tint no-pointer" />
+
       {/* Город + расстояние — сверху */}
       {(user.city || user.distance) && (
-        <div className="row" style={{ position: 'absolute', top: 22, left: 16, right: 56, gap: 8 }}>
+        <div className="swipe-location-row row">
+          {user.city && (
+            <span className="swipe-city text-small text-muted truncate">
+              {user.city}
+            </span>
+          )}
           {user.distance && (
-            <div className="row glass text-caption shrink-0" style={{
-              gap: 3, borderRadius: 10, padding: '3px 8px',
-              background: 'rgba(128,128,128,0.3)',
-              border: '1.4px solid rgba(255,255,255,0.4)',
-              backdropFilter: 'blur(50px)',
-            }}>
+            <div className="swipe-distance row glass-light text-caption shrink-0">
               <svg width="8" height="10" viewBox="0 0 10 13" fill="none">
                 <path d="M5 0C2.24 0 0 2.24 0 5c0 3.75 5 8 5 8s5-4.25 5-8c0-2.76-2.24-5-5-5zm0 6.5C4.17 6.5 3.5 5.83 3.5 5S4.17 3.5 5 3.5 6.5 4.17 6.5 5 5.83 6.5 5 6.5z" fill="currentColor"/>
               </svg>
               {user.distance}
             </div>
-          )}
-          {user.city && (
-            <span className="text-small text-muted truncate" style={{ textShadow: '0px 1px 3px rgba(0,0,0,0.6)' }}>
-              {user.city}
-            </span>
           )}
         </div>
       )}
@@ -142,6 +190,7 @@ function SwipeCard({ user, onSwipe, isTop, onReport, onOpenProfile, onSuperLike,
             {user.name}, {user.age}
           </span>
           {user.verified && <VerifiedBadge size={22} />}
+          {user.is_premium && <PremiumBadge size={22} />}
         </div>
         {user.bio && (
           <p className="text-small" style={{
@@ -166,37 +215,15 @@ function SwipeCard({ user, onSwipe, isTop, onReport, onOpenProfile, onSuperLike,
         </div>
       )}
 
-      {/* Мем-совместимость — сверху справа, слева от кнопки жалобы */}
-      <CompatibilityBadge value={user.compatibility} style={{ position: 'absolute', top: 18, right: 54, zIndex: 5 }} />
-
-      {/* Report button */}
-      {isTop && (
-        <button
-          onClick={e => { e.stopPropagation(); onReport?.() }}
-          onPointerDown={stopDrag}
-          className="center text-body"
-          style={{
-            position: 'absolute', top: 18, right: 14,
-            background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(8px)',
-            WebkitBackdropFilter: 'blur(8px)',
-            border: '1px solid rgba(255,255,255,0.2)',
-            borderRadius: '50%', width: 32, height: 32,
-            cursor: 'pointer', zIndex: 5,
-            fontFamily: 'inherit',
-          }}
-        >⚠️</button>
-      )}
-
-      {/* Swipe hint labels */}
-      {hint === 'like' && (
-        <div className="text-h2" style={{ position: 'absolute', top: 50, left: 20, border: '3px solid var(--success)', borderRadius: 8, padding: '6px 14px', color: 'var(--success)', transform: 'rotate(-15deg)' }}>ЛАЙК ❤️</div>
-      )}
-      {hint === 'dislike' && (
-        <div className="text-h2" style={{ position: 'absolute', top: 50, right: 20, border: '3px solid var(--error)', borderRadius: 8, padding: '6px 14px', color: 'var(--error)', transform: 'rotate(15deg)' }}>ПАСС 💔</div>
-      )}
-      {hint === 'super' && (
-        <div className="text-h2" style={{ position: 'absolute', top: 50, left: '50%', transform: 'translateX(-50%)', border: '3px solid var(--accent)', borderRadius: 8, padding: '6px 14px', color: 'var(--accent)' }}>СУПЕР 😍</div>
-      )}
+      {/* Мем-совместимость — сверху справа */}
+      <CompatibilityBadge
+        value={user.compatibility}
+        className="swipe-compatibility-badge"
+        onClick={(event) => {
+          event.stopPropagation()
+          onOpenCompatibility?.()
+        }}
+      />
 
       {/* Action buttons overlay */}
       {isTop && (
@@ -205,20 +232,20 @@ function SwipeCard({ user, onSwipe, isTop, onReport, onOpenProfile, onSuperLike,
           justifyContent: 'space-between', gap: 8,
           padding: '0 clamp(14px, 4.5vw, 24px)', boxSizing: 'border-box', zIndex: 5,
         }}>
-          <CircleIconButton onClick={() => onUndo?.()} style={{ opacity: !isPremium ? 0.4 : 1 }} ariaLabel="undo">
-            <img src="/icons/undo.svg" width={28} height={28} alt="undo" draggable={false} style={{ objectFit: 'contain' }} onPointerDown={stopDrag} />
+          <CircleIconButton size="clamp(46px, 12.7vw, 50px)" className="glass-light swipe-action-btn" onClick={() => onUndo?.()} ariaLabel="undo">
+            <img className="swipe-action-icon" src="/icons/undo.svg" alt="undo" draggable={false} onPointerDown={stopDrag} />
           </CircleIconButton>
-          <CircleIconButton onClick={() => onSwipe?.('dislike', user.id)} ariaLabel="dislike">
-            <img src="/icons/dislike.svg" width={28} height={28} alt="dislike" draggable={false} style={{ objectFit: 'contain' }} onPointerDown={stopDrag} />
+          <CircleIconButton size="clamp(46px, 12.7vw, 50px)" className="glass-light swipe-action-btn" onClick={() => animateSwipeOut('dislike')} ariaLabel="dislike">
+            <img className="swipe-action-icon" src="/icons/dislike.svg" alt="dislike" draggable={false} onPointerDown={stopDrag} />
           </CircleIconButton>
-          <CircleIconButton onClick={() => onSuperLike?.()} ariaLabel="superlike">
-            <img src="/icons/superlike.svg" width={28} height={28} alt="superlike" draggable={false} style={{ objectFit: 'contain' }} onPointerDown={stopDrag} />
+          <CircleIconButton size="clamp(46px, 12.7vw, 50px)" className="glass-light swipe-action-btn" onClick={() => onSuperLike?.()} ariaLabel="superlike">
+            <img className="swipe-action-icon" src="/icons/superlike.svg" alt="superlike" draggable={false} onPointerDown={stopDrag} />
           </CircleIconButton>
-          <CircleIconButton onClick={() => onSwipe?.('like', user.id)} ariaLabel="like">
-            <img src="/icons/like.svg" width={28} height={28} alt="like" draggable={false} style={{ objectFit: 'contain' }} onPointerDown={stopDrag} />
+          <CircleIconButton size="clamp(46px, 12.7vw, 50px)" className="glass-light swipe-action-btn" onClick={() => animateSwipeOut('like')} ariaLabel="like">
+            <img className="swipe-action-icon" src="/icons/like.svg" alt="like" draggable={false} onPointerDown={stopDrag} />
           </CircleIconButton>
-          <CircleIconButton onClick={() => onFilters?.()} ariaLabel="filters">
-            <img src="/icons/filters.svg" width={28} height={28} alt="filters" draggable={false} style={{ objectFit: 'contain' }} onPointerDown={stopDrag} />
+          <CircleIconButton size="clamp(46px, 12.7vw, 50px)" className="glass-light swipe-action-btn" onClick={() => onFilters?.()} ariaLabel="filters">
+            <img className="swipe-action-icon" src="/icons/filters.svg" alt="filters" draggable={false} onPointerDown={stopDrag} />
           </CircleIconButton>
         </div>
       )}
@@ -226,17 +253,18 @@ function SwipeCard({ user, onSwipe, isTop, onReport, onOpenProfile, onSuperLike,
   )
 }
 
-export default function SwipeScreen({ isPremium = false, userGender, onOpenProfile, onBuyPremium }) {
+export default function SwipeScreen({ currentUser, isPremium = false, userGender, onOpenProfile, onBuyPremium, externalSwipeRequest }) {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [isEmpty, setIsEmpty] = useState(false)
   const [matchUser, setMatchUser] = useState(null)
   const [showFilters, setShowFilters] = useState(false)
   const [superLikeUser, setSuperLikeUser] = useState(null)
-  const [reportUser, setReportUser] = useState(null)
   const [superlikeLeft, setSuperlikeLeft] = useState(1)
   const [showNoSuperlikes, setShowNoSuperlikes] = useState(false)
   const [showNoUndos, setShowNoUndos] = useState(false)
+  const [compatibilityUser, setCompatibilityUser] = useState(null)
+  const [lostMatchPush, setLostMatchPush] = useState(null)
   const [filters, setFilters] = useState(() => {
     try { return JSON.parse(localStorage.getItem('swipe_filters') || '{}') } catch { return {} }
   })
@@ -262,10 +290,17 @@ export default function SwipeScreen({ isPremium = false, userGender, onOpenProfi
   const handleSwipe = useCallback(async (dir, userId, message) => {
     try {
       const result = await api.swipe(userId, dir, message)
+      registerSwipe()
       setSuperlikeLeft(result.superlike_left ?? superlikeLeft)
       if (result.is_match) {
         setMatchUser(result.match_user)
         return
+      }
+      if (result.lost_match) {
+        setLostMatchPush({
+          id: `${userId}-${Date.now()}`,
+          title: 'Вы упустили пару...',
+        })
       }
     } catch (e) {
       if (e.message?.includes('Лимит суперлайков')) {
@@ -281,6 +316,11 @@ export default function SwipeScreen({ isPremium = false, userGender, onOpenProfi
     })
   }, [superlikeLeft])
 
+  useEffect(() => {
+    if (!externalSwipeRequest?.userId || !externalSwipeRequest?.type) return
+    handleSwipe(externalSwipeRequest.type, externalSwipeRequest.userId, externalSwipeRequest.message)
+  }, [externalSwipeRequest, handleSwipe])
+
   const handleUndo = async () => {
     if (!isPremium) { setShowNoUndos(true); return }
     try {
@@ -291,20 +331,6 @@ export default function SwipeScreen({ isPremium = false, userGender, onOpenProfi
       }
     } catch {
       setShowNoUndos(true)
-    }
-  }
-
-  const handleReport = async (user, reason) => {
-    try {
-      await api.report(user.id, reason)
-      setReportUser(null)
-      setUsers(prev => {
-        const next = prev.filter(u => u.id !== user.id)
-        if (next.length === 0) setIsEmpty(true)
-        return next
-      })
-    } catch (e) {
-      console.error(e)
     }
   }
 
@@ -331,7 +357,18 @@ export default function SwipeScreen({ isPremium = false, userGender, onOpenProfi
 
   return (
     <Screen withNav scroll={false}>
-      <div className="text-center shrink-0" style={{ padding: 'clamp(48px, 7vh, 72px) 0 clamp(8px, 1.5vh, 14px)' }}>
+      <TopPush
+        key={lostMatchPush?.id}
+        open={Boolean(lostMatchPush)}
+        onClose={() => setLostMatchPush(null)}
+      >
+        <div className="lost-match-push__content">
+          <span className="lost-match-push__emoji" aria-hidden="true">😭</span>
+          <span className="lost-match-push__title">{lostMatchPush?.title}</span>
+        </div>
+      </TopPush>
+
+      <div className="swipe-screen-header text-center shrink-0">
         <span className="text-h3 font-extra text-wider">СВАЙПИК</span>
       </div>
 
@@ -358,7 +395,6 @@ export default function SwipeScreen({ isPremium = false, userGender, onOpenProfi
                 user={topUser}
                 onSwipe={handleSwipe}
                 isTop={true}
-                onReport={() => setReportUser(topUser)}
                 onOpenProfile={onOpenProfile}
                 onSuperLike={() => {
                   if (superlikeLeft <= 0) { setShowNoSuperlikes(true); return }
@@ -366,6 +402,7 @@ export default function SwipeScreen({ isPremium = false, userGender, onOpenProfi
                 }}
                 onUndo={handleUndo}
                 onFilters={() => setShowFilters(true)}
+                onOpenCompatibility={() => setCompatibilityUser(topUser)}
                 isPremium={isPremium}
               />
             )}
@@ -382,6 +419,7 @@ export default function SwipeScreen({ isPremium = false, userGender, onOpenProfi
           initialFilters={filters}
           onClose={() => setShowFilters(false)}
           onApply={handleApplyFilters}
+          onBuyPremium={onBuyPremium}
         />
       )}
 
@@ -391,14 +429,6 @@ export default function SwipeScreen({ isPremium = false, userGender, onOpenProfi
           superlikeLeft={superlikeLeft}
           onClose={() => setSuperLikeUser(null)}
           onSend={(user, msg) => { setSuperLikeUser(null); handleSwipe('super', user.id, msg) }}
-        />
-      )}
-
-      {reportUser && (
-        <ReportModal
-          user={reportUser}
-          onClose={() => setReportUser(null)}
-          onReport={handleReport}
         />
       )}
 
@@ -416,7 +446,83 @@ export default function SwipeScreen({ isPremium = false, userGender, onOpenProfi
           onBuyPremium={() => { setShowNoUndos(false); onBuyPremium?.() }}
         />
       )}
+
+      {compatibilityUser && (
+        <CompatibilitySheet
+          currentUser={currentUser}
+          viewedUser={compatibilityUser}
+          onClose={() => setCompatibilityUser(null)}
+        />
+      )}
     </Screen>
+  )
+}
+
+export function CompatibilitySheet({ currentUser, viewedUser, onClose }) {
+  const ownProfile = currentUser?.profile || currentUser
+  const ownPhotos = (ownProfile?.photos || []).map(photo => photo?.url || photo).filter(Boolean)
+  const ownPhoto = ownPhotos[0] || ownProfile?.photo
+  const ownPhotoFallback = ownPhotos[1] || ownProfile?.photo
+  const viewedPhoto = viewedUser?.photos?.[0] || viewedUser?.photo
+  const compatibility = Number(viewedUser?.compatibility || 0)
+  const compatibilityLevel = compatibility < 45
+    ? {
+        message: 'Зубы есть, и ладно',
+        image: '/images/compatibility-low.png',
+        imageAlt: 'Низкая совместимость',
+      }
+    : compatibility > 65
+      ? {
+          message: 'Ни в чем себе не отказывайте',
+          image: '/images/compatibility-high.png',
+          imageAlt: 'Высокая совместимость',
+        }
+      : {
+          message: 'Сомнительно, но окэй',
+          image: '/images/compatibility-medium.png',
+          imageAlt: 'Средняя совместимость',
+        }
+
+  return (
+    <BottomSheet onClose={onClose} className="compatibility-sheet">
+      {closeSheet => (
+        <div className="compatibility-sheet__content center">
+          <div className="compatibility-sheet__profiles row">
+            <div className="compatibility-sheet__profile compatibility-sheet__profile--own overflow-hidden">
+              <img
+                src={ownPhoto}
+                alt="Ваш профиль"
+                onError={(event) => {
+                  if (ownPhotoFallback && event.currentTarget.src !== ownPhotoFallback) {
+                    event.currentTarget.src = ownPhotoFallback
+                  }
+                }}
+              />
+            </div>
+            <div className="compatibility-sheet__profile compatibility-sheet__profile--viewed overflow-hidden">
+              <img src={viewedPhoto} alt={viewedUser?.name || 'Просматриваемый профиль'} />
+            </div>
+          </div>
+
+          <div className="compatibility-sheet__score center">
+            Мем-совместимость {compatibility}%
+          </div>
+          <p className="compatibility-sheet__message text-body text-center">
+            {compatibilityLevel.message}
+          </p>
+
+          <img
+            className="compatibility-sheet__illustration"
+            src={compatibilityLevel.image}
+            alt={compatibilityLevel.imageAlt}
+          />
+
+          <button type="button" onClick={closeSheet} className="btn-ghost compatibility-sheet__close">
+            Закрыть
+          </button>
+        </div>
+      )}
+    </BottomSheet>
   )
 }
 
@@ -434,10 +540,14 @@ function EmptySearch({ onReload }) {
         <input
           type="range" min={1} max={100} value={range}
           onChange={e => setRange(Number(e.target.value))}
-          style={{ width: '100%', accentColor: 'var(--accent)' }}
+          className="app-range full-w"
+          style={{
+            '--range-progress': `${range}%`,
+            '--range-inactive': '#CCCCCC',
+          }}
         />
       </div>
-      <button className="btn-dark" onClick={() => {
+      <button className="btn-dark empty-search__apply" onClick={() => {
         localStorage.setItem('swipe_filters', JSON.stringify({ distance: range }))
         onReload()
       }}>Применить</button>
@@ -455,40 +565,25 @@ function MatchModal({ user, onClose }) {
   }
 
   return (
-    <Screen variant="gradient" style={{
-      padding: '0 clamp(16px, 6vw, 32px)',
-      zIndex: 200, alignItems: 'center',
-    }}>
-      <h1 className="text-display font-black text-tight text-center" style={{
-        margin: 'clamp(48px, 11vh, 96px) 0 clamp(12px, 2.5vh, 24px)',
-        textShadow: '0.8px 2.4px 5.3px rgba(0,0,0,0.47)',
-      }}>
+    <Screen variant="gradient" className="match-modal">
+      <h1 className="match-modal__title text-display font-bold text-tight text-center">
         ЭТО ВЗАИМНО!!!
       </h1>
 
-      <div className="overflow-hidden shrink-0" style={{
-        position: 'relative',
-        width: '100%', maxWidth: 'min(340px, 87vw)',
-        height: 'clamp(300px, 57vh, 490px)',
-        borderRadius: 30,
-      }}>
+      <div className="match-modal__photo overflow-hidden shrink-0">
         <img src={user.photo} alt="" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
         <FadeOverlay position="bottom" height="45%" />
         <div style={{ position: 'absolute', bottom: 16, left: 18 }}>
-          <span className="text-h2">{user.name}</span>
+          <span className="text-h2">{user.name}{user.age ? `, ${user.age}` : ''}</span>
         </div>
         <div style={{ position: 'absolute', bottom: -16, right: -16, pointerEvents: 'none' }}>
           <Sticker index={3} size={Math.round(Math.min(window.innerWidth * 0.35, 145))} />
         </div>
       </div>
 
-      <div className="stack-sm full-w" style={{
-        maxWidth: 'min(340px, 87vw)',
-        marginTop: 'clamp(24px, 5vh, 44px)',
-        paddingBottom: 'max(28px, env(safe-area-inset-bottom, 28px))',
-      }}>
-        <button onClick={openTg} className="btn-tg font-bold">
-          <TgIcon /> Отправить сообщение
+      <div className="match-modal__actions stack-sm full-w">
+        <button onClick={openTg} className="match-modal__message btn-tg font-bold">
+          <TelegramIcon className="match-modal__send-icon" /> Отправить сообщение
         </button>
         <button onClick={onClose} className="btn-dark">
           Свайпать дальше!
@@ -498,30 +593,29 @@ function MatchModal({ user, onClose }) {
   )
 }
 
-function TgIcon() {
-  return <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z"/></svg>
-}
-
 function ShopRow({ label, price, onClick }) {
   return (
-    <button onClick={onClick} className="row-between full-w text-body font-medium" style={{
-      background: 'var(--surface-elev-1)', border: '1px solid rgba(255,255,255,0.1)',
-      borderRadius: 14, padding: '14px 18px', cursor: 'pointer', fontFamily: 'inherit',
-      color: 'var(--text)',
-    }}>
+    <button type="button" onClick={onClick} className="no-undos-sheet__plan row-between full-w">
       <span>{label}</span>
-      <span className="text-gold font-bold">{price} ⭐</span>
+      <span className="no-undos-sheet__price">
+        {price}
+        <ShopStar />
+      </span>
     </button>
   )
 }
 
+function ShopStar() {
+  return <StarIcon className="no-undos-sheet__star" />
+}
+
 function NoSuperlikesModal({ onClose, onBuyPremium, isPremium }) {
-  const handleBuy = async (count) => {
+  const handleBuy = async (count, closeSheet) => {
     try {
       const data = await api.purchaseSuperlikes(count)
       if (data.invoice_url) {
         window.Telegram?.WebApp?.openInvoice?.(data.invoice_url, status => {
-          if (status === 'paid') onClose()
+          if (status === 'paid') closeSheet()
         })
       }
     } catch (e) {
@@ -530,74 +624,35 @@ function NoSuperlikesModal({ onClose, onBuyPremium, isPremium }) {
   }
 
   return (
-    <BottomSheet onClose={onClose}>
-      <div className="stack-sm center">
+    <BottomSheet onClose={onClose} className="no-superlikes-sheet">
+      {closeSheet => (
+      <div className="no-undos-sheet__content no-superlikes-sheet__content center">
         <Sticker index={1} size={159} />
-        <h2 className="text-h1 text-center">
+        <h2 className="no-undos-sheet__title text-h1 text-center">
           Суперлайки закончились(
         </h2>
-        <p className="text-body text-center text-muted">
+        <p className="no-superlikes-sheet__description text-body text-center text-muted">
           Новые будут доступны через:
         </p>
-        <div className="glass text-body" style={{ padding: '5px 20px', borderRadius: 30 }}>
+        <div className="no-superlikes-sheet__timer text-body">
           <SuperlikeTimer />
         </div>
         {!isPremium && (
-          <button onClick={onBuyPremium} className="btn-dark mt-xs">
+          <button onClick={onBuyPremium} className="no-undos-sheet__premium btn-dark">
             Получить больше с Premium
           </button>
         )}
-        <span className="text-body text-muted">или купить их отдельно</span>
-        <div className="stack-xs full-w mb-2xs">
-          <ShopRow label="Купить 1 суперлайк" price={30} onClick={() => handleBuy(1)} />
-          <ShopRow label="Купить 5 суперлайков" price={150} onClick={() => handleBuy(5)} />
-          <ShopRow label="Купить 10 суперлайков" price={300} onClick={() => handleBuy(10)} />
+        <span className="no-undos-sheet__separator text-body text-muted">или купить их отдельно</span>
+        <div className="no-undos-sheet__plans full-w">
+          <ShopRow label="1 суперлайк" price={40} onClick={() => handleBuy(1, closeSheet)} />
+          <ShopRow label="5 суперлайков" price={70} onClick={() => handleBuy(5, closeSheet)} />
+          <ShopRow label="10 суперлайков" price={100} onClick={() => handleBuy(10, closeSheet)} />
         </div>
-        <button onClick={onClose} className="btn-ghost text-body text-muted">
+        <button onClick={closeSheet} className="no-undos-sheet__close btn-ghost text-body">
           Закрыть
         </button>
       </div>
-    </BottomSheet>
-  )
-}
-
-function NoUndosModal({ onClose, onBuyPremium }) {
-  const handleBuy = async (count) => {
-    try {
-      const data = await api.purchaseUndos(count)
-      if (data.invoice_url) {
-        window.Telegram?.WebApp?.openInvoice?.(data.invoice_url, status => {
-          if (status === 'paid') onClose()
-        })
-      }
-    } catch (e) {
-      console.error(e)
-    }
-  }
-
-  return (
-    <BottomSheet onClose={onClose}>
-      <div className="stack-sm center">
-        <Sticker index={1} size={159} />
-        <h2 className="text-h1 text-center">
-          Возвратов нет(
-        </h2>
-        <p className="text-body text-center text-muted" style={{ width: 293, maxWidth: '100%' }}>
-          Безлимитные возвраты доступны только Premium пользователям
-        </p>
-        <button onClick={onBuyPremium} className="btn-dark mt-xs">
-          Получить возвраты с Premium
-        </button>
-        <span className="text-body text-muted">или купить их отдельно</span>
-        <div className="stack-xs full-w mb-2xs">
-          <ShopRow label="Купить 1 возврат" price={30} onClick={() => handleBuy(1)} />
-          <ShopRow label="Купить 5 возвратов" price={150} onClick={() => handleBuy(5)} />
-          <ShopRow label="Купить 10 возвратов" price={300} onClick={() => handleBuy(10)} />
-        </div>
-        <button onClick={onClose} className="btn-ghost text-body text-muted">
-          Закрыть
-        </button>
-      </div>
+      )}
     </BottomSheet>
   )
 }

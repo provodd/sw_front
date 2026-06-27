@@ -1,35 +1,9 @@
 import { useState, useRef, useCallback } from 'react'
 import BottomSheet from '../components/BottomSheet.jsx'
+import { PremiumBadge, VerifiedBadge } from '../components/ui'
 
 const ZODIAC = ['Овен','Телец','Близнецы','Рак','Лев','Дева','Весы','Скорпион','Стрелец','Козерог','Водолей','Рыбы']
 const INTERESTS = ['Животные','Фото/видео','Искусство','Экстрим','Игры','Музыка','Путешествия','Спорт','Книги','Еда']
-
-const segBtn = (active) => ({
-  flex: 1, height: '100%', cursor: 'pointer', fontFamily: 'inherit',
-  background: active ? 'rgba(255,255,255,0.18)' : 'transparent',
-  border: 'none',
-  borderRadius: active ? 25 : 100,
-  color: active ? 'rgba(255,255,255,0.96)' : 'rgba(255,255,255,0.45)',
-  fontWeight: active ? 600 : 400,
-  boxShadow: active ? '0px 2.5px 5px rgba(0,0,0,0.15)' : 'none',
-  transition: 'all var(--transition-fast)',
-})
-
-function Toggle({ value, onChange }) {
-  return (
-    <div onClick={() => onChange(!value)} className="relative pointer shrink-0" style={{
-      width: 48, height: 28, borderRadius: 14,
-      background: value ? '#34c759' : 'rgba(255,255,255,0.2)',
-      transition: 'background var(--transition-fast)',
-    }}>
-      <div style={{
-        position: 'absolute', top: 4, left: value ? 24 : 4,
-        width: 20, height: 20, borderRadius: '50%', background: 'var(--text)',
-        transition: 'left var(--transition-fast)',
-      }} />
-    </div>
-  )
-}
 
 function Thumb({ left, onPointerDown }) {
   return (
@@ -43,7 +17,7 @@ function Thumb({ left, onPointerDown }) {
       }}
     >
       <div className="no-pointer shrink-0" style={{
-        width: 22, height: 22, borderRadius: '50%',
+        width: 28, height: 20, borderRadius: 'var(--radius-pill)',
         background: 'var(--text)', boxShadow: '0 2px 8px rgba(0,0,0,0.45)',
       }} />
     </div>
@@ -165,7 +139,7 @@ function SingleSlider({ min, max, value, onChange }) {
   )
 }
 
-export default function FiltersModal({ onClose, onApply, isPremium = false, userGender }) {
+export default function FiltersModal({ onClose, onApply, onBuyPremium, isPremium = false, userGender }) {
   const defaultGender = userGender === 'male' ? 'female' : userGender === 'female' ? 'male' : 'all'
   const [gender, setGender] = useState(defaultGender)
   const [ageMin, setAgeMin] = useState(18)
@@ -189,6 +163,8 @@ export default function FiltersModal({ onClose, onApply, isPremium = false, user
 
   return (
     <BottomSheet onClose={onClose}>
+      {closeSheet => (
+      <>
       <div className="row-between mb-lg">
         <h2 className="text-h2 font-extra">Фильтры</h2>
         <button onClick={reset} className="btn-ghost text-body text-muted">Сбросить</button>
@@ -196,14 +172,17 @@ export default function FiltersModal({ onClose, onApply, isPremium = false, user
 
       {/* Gender — segmented */}
       <div className="mb-xl">
-        <div className="row relative overflow-hidden" style={{
-          height: 44, borderRadius: 100, padding: 4,
-          background: 'rgba(0,0,0,0.4)',
-          backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
-          boxShadow: 'inset 0 -0.5px 1px rgba(255,255,255,0.3), inset 0 -0.5px 1px rgba(255,255,255,0.25), inset 1px 1.5px 4px rgba(0,0,0,0.08), inset 1px 1.5px 4px rgba(0,0,0,0.1)',
-        }}>
+        <div className="segmented-control" style={{ '--segment-index': [['male'], ['female'], ['all']].findIndex(([key]) => key === gender), '--segment-count': 3 }}>
+          <span className="segmented-control__indicator" aria-hidden="true" />
           {[['male','Мужчины'],['female','Женщины'],['all','Не важно']].map(([key, label]) => (
-            <button key={key} onClick={() => setGender(key)} className="text-body" style={segBtn(gender === key)}>{label}</button>
+            <button
+              key={key}
+              type="button"
+              onClick={() => setGender(key)}
+              className={`segmented-control__item text-body ${gender === key ? 'is-active' : ''}`}
+            >
+              {label}
+            </button>
           ))}
         </div>
       </div>
@@ -239,9 +218,9 @@ export default function FiltersModal({ onClose, onApply, isPremium = false, user
           </div>
 
           {/* Zodiac */}
-          <div className="mb-lg">
+          <div className="filters-section filters-section--zodiac mb-lg">
             <p className="mb-sm text-body font-bold">Знак зодиака</p>
-            <div className="cluster-xs">
+            <div className="cluster-xs filters-chip-cluster">
               {ZODIAC.map(z => {
                 const active = zodiac.includes(z)
                 return (
@@ -257,9 +236,9 @@ export default function FiltersModal({ onClose, onApply, isPremium = false, user
           </div>
 
           {/* Interests */}
-          <div className="mb-lg">
+          <div className="filters-section filters-section--interests mb-lg">
             <p className="mb-sm text-body font-bold">Интересы</p>
-            <div className="cluster-xs">
+            <div className="cluster-xs filters-chip-cluster">
               {INTERESTS.map(int => {
                 const active = interests.includes(int)
                 return (
@@ -275,25 +254,38 @@ export default function FiltersModal({ onClose, onApply, isPremium = false, user
           </div>
 
           {/* Toggles */}
-          <div className="stack-sm mb-lg">
+          <div className="stack-sm mb-lg filters-premium-options">
             {[
-              ['✅', 'Только верифицированных', onlyVerified, setOnlyVerified],
-              ['🪙', 'Только Premium-аккаунты', onlyPremium, setOnlyPremium],
+              [<VerifiedBadge size={23} />, 'Только верифицированных', onlyVerified, setOnlyVerified],
+              [<PremiumBadge size={23} />, 'Только Premium-аккаунты', onlyPremium, setOnlyPremium],
             ].map(([icon, label, val, set]) => (
-              <div key={label} className="row-between" style={{
-                background: 'var(--surface-elev-1)', borderRadius: 14, padding: '12px 16px',
-              }}>
-                <div className="row" style={{ gap: 10 }}>
-                  <span className="emoji-sm">{icon}</span>
+              <button
+                key={label}
+                type="button"
+                className="filters-premium-option row-between"
+                onClick={() => set(!val)}
+                aria-pressed={val}
+              >
+                <div className="row filters-premium-option__label">
+                  <span className="filters-premium-option__icon center shrink-0">{icon}</span>
                   <span className="text-small font-semi">{label}</span>
                 </div>
-                <Toggle value={val} onChange={set} />
-              </div>
+                <span className={`edit-profile-toggle ${val ? 'is-on' : ''}`} aria-hidden="true">
+                  <span />
+                </span>
+              </button>
             ))}
           </div>
         </>
       ) : (
-        <div className="row-between mb-lg" style={{
+        <button
+          type="button"
+          className="filters-premium-link row-between mb-lg"
+          onClick={() => {
+            closeSheet()
+            window.setTimeout(() => onBuyPremium?.(), 280)
+          }}
+          style={{
           background: 'var(--surface-elev-1)', borderRadius: 14, padding: '14px 16px',
         }}>
           <div>
@@ -302,23 +294,21 @@ export default function FiltersModal({ onClose, onApply, isPremium = false, user
               Премиум дает возможность найти того самого человека
             </p>
           </div>
-          <div className="center shrink-0 emoji-sm" style={{
-            width: 32, height: 32, borderRadius: '50%',
-            background: 'var(--accent-soft)', border: '1.5px solid rgba(233,30,140,0.6)',
-            color: 'var(--accent)', fontWeight: 300,
-          }}>+</div>
-        </div>
+          <span className="filters-premium-link__plus center shrink-0" aria-hidden="true">+</span>
+        </button>
       )}
 
       <button
         onClick={() => {
           onApply?.({ gender, ageMin, ageMax, distance, heightMin, heightMax, zodiac, interests, onlyVerified, onlyPremium })
-          onClose()
+          closeSheet()
         }}
         className="btn-dark"
       >
         Применить
       </button>
+      </>
+      )}
     </BottomSheet>
   )
 }

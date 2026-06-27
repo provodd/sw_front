@@ -5,27 +5,26 @@
  * value — процент 0..100 или null/undefined (данных мало — у кого-то < 10
  * оценённых мемов) — тогда бейдж не рендерится.
  */
-export default function CompatibilityBadge({ value, className = '', style }) {
+export default function CompatibilityBadge({ value, className = '', style, onClick }) {
   if (value === null || value === undefined) return null
 
+  const stopCardGesture = event => event.stopPropagation()
+
   return (
-    <div
-      className={['center', className].filter(Boolean).join(' ')}
-      style={{
-        height: 32,
-        padding: '0 12px',
-        borderRadius: 'var(--radius-pill)',
-        background: 'rgba(255,255,255,0.12)',
-        backdropFilter: 'blur(8px)',
-        WebkitBackdropFilter: 'blur(8px)',
-        textShadow: '0px 1px 2px rgba(0,0,0,0.4)',
-        ...style,
-      }}
+    <button
+      type="button"
+      className={['compatibility-badge', 'glass-light', 'center', className].filter(Boolean).join(' ')}
+      style={style}
       title="Мем-совместимость"
+      onClick={onClick}
+      onPointerDown={stopCardGesture}
+      onPointerMove={stopCardGesture}
+      onPointerUp={stopCardGesture}
+      aria-label={`Мем-совместимость ${value}%`}
     >
-      <span className="font-extra" style={{ fontSize: 18, lineHeight: 1, letterSpacing: '-0.3px', color: 'var(--text)' }}>
+      <span className="compatibility-badge__value font-extra">
         {value}%
       </span>
-    </div>
+    </button>
   )
 }

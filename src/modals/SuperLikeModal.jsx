@@ -1,57 +1,71 @@
 import { useState } from 'react'
 import BottomSheet from '../components/BottomSheet.jsx'
 
-export default function SuperLikeModal({ user, onClose, onSend }) {
+export default function SuperLikeModal({ user, onClose, onSend, superlikeLeft = 1 }) {
   const [msg, setMsg] = useState('')
 
   return (
     <BottomSheet onClose={onClose}>
-      {/* Avatar */}
-      <div className="relative mx-auto mb-md" style={{ width: 100, height: 100 }}>
-        <img
-          src={user?.photos?.[0] || user?.photo}
-          alt=""
-          style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 50, border: '2px solid rgba(255,255,255,0.4)' }}
-        />
-        <div className="absolute emoji-md" style={{ bottom: -8, right: -8 }}>😍</div>
-      </div>
+      {closeSheet => (
+        <div className="superlike-sheet">
+          <div className="superlike-sheet__intro">
+            <div className="superlike-sheet__avatar-wrap">
+              <img
+                className="superlike-sheet__avatar"
+                src={user?.photos?.[0] || user?.photo}
+                alt={user?.name || ''}
+              />
+              <span className="superlike-sheet__badge">
+                <img src="/icons/superlike.svg" alt="" />
+              </span>
+            </div>
 
-      <h2 className="text-h2 font-extra text-center mb-2xs">
-        Суперлайк для {user?.name}
-      </h2>
-      <p className="text-small text-faint text-center mb-lg">
-        Сегодня доступно: 1 суперлайк
-      </p>
+            <h2 className="superlike-sheet__title">Суперлайк</h2>
+            <p className="superlike-sheet__description">
+              Напиши что-нибудь приятное, это сообщение точно увидят!
+            </p>
+          </div>
 
-      <div className="relative mb-lg">
-        <textarea
-          value={msg}
-          onChange={e => setMsg(e.target.value.slice(0, 100))}
-          placeholder="Напиши что-нибудь... (необязательно)"
-          rows={3}
-          className="full-w text-small"
-          style={{
-            padding: '12px 14px', boxSizing: 'border-box',
-            background: 'var(--surface-elev-1)', border: '1px solid rgba(255,255,255,0.15)',
-            borderRadius: 14, color: 'var(--text)', resize: 'none', outline: 'none',
-            fontFamily: 'inherit',
-          }}
-        />
-        <span className="text-caption text-dim" style={{ position: 'absolute', bottom: 8, right: 12 }}>
-          {msg.length}/100
-        </span>
-      </div>
+          <div className="superlike-sheet__message">
+            <div className="superlike-sheet__message-meta">
+              <span>Сообщение</span>
+              <span>{msg.length}/100</span>
+            </div>
+            <textarea
+              value={msg}
+              onChange={event => setMsg(event.target.value.slice(0, 100))}
+              placeholder="Действуй нестандартно!"
+              rows={3}
+              aria-label={`Сообщение для ${user?.name || 'пользователя'}`}
+            />
+          </div>
 
-      <button
-        onClick={() => { onSend?.(user, msg); onClose() }}
-        className="btn-pink mb-sm"
-      >
-        Поставить суперлайк 😍
-      </button>
+          <div className="superlike-sheet__available">
+            <span>Сегодня доступно:</span>
+            <span className="card-dark">
+              {superlikeLeft} {superlikeLeft === 1 ? 'суперлайк' : 'суперлайка'}
+            </span>
+          </div>
 
-      <button onClick={onClose} className="btn-ghost text-faint full-w">
-        Отмена
-      </button>
+          <button
+            onClick={() => {
+              closeSheet()
+              window.setTimeout(() => onSend?.(user, msg), 280)
+            }}
+            className="superlike-sheet__submit"
+          >
+            Поставить суперлайк
+          </button>
+
+          <button
+            type="button"
+            onClick={closeSheet}
+            className="superlike-sheet__cancel"
+          >
+            Отмена
+          </button>
+        </div>
+      )}
     </BottomSheet>
   )
 }
